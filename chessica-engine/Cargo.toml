@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 
-chessica-core = { path = "../chessica-core" }
+chessica = { path = "../chessica" }

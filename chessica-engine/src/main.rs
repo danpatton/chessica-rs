@@ -1,8 +1,8 @@
 #[macro_use]
-extern crate chessica_core;
+extern crate chessica;
 
-use chessica_core::bitboard::BitBoard;
-use chessica_core::square::Square;
+use chessica::bitboard::BitBoard;
+use chessica::square::Square;
 
 fn main() {
     let e4 = sq!(e4);
