@@ -149,7 +149,7 @@ mod tests {
         let e4 = sq!(e4);
         assert_eq!(e4.rank(), 3);
         assert_eq!(e4.file(), 4);
-        let h5: Square = sq!(h5);
+        let h5 = sq!(h5);
         assert_eq!(h5.rank(), 4);
         assert_eq!(h5.file(), 7);
     }
