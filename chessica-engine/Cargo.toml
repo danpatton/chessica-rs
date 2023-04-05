@@ -1,5 +1,5 @@
 [package]
-name = "chessica-cli"
+name = "chessica-engine"
 version = "0.1.0"
 edition = "2021"
 
