@@ -16,6 +16,10 @@ impl Square {
         Square { ordinal }
     }
 
+    pub fn bit(&self) -> u64 {
+        1 << self.ordinal
+    }
+
     pub fn rank(&self) -> u8 {
         self.ordinal / 8
     }

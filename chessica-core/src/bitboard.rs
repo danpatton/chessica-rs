@@ -23,25 +23,25 @@ impl BitBoard {
     }
 
     pub fn set(&self, square: &Square) -> BitBoard {
-        BitBoard { value: self.value | 1 << square.ordinal }
+        BitBoard { value: self.value | square.bit() }
     }
 
     pub fn set_all(&self, squares: &[Square]) -> BitBoard {
-        let bits: u64 = squares.iter().map(|s| 1 << s.ordinal).fold(0, |a, b| a | b);
+        let bits: u64 = squares.iter().map(|s| s.bit()).fold(0, |a, b| a | b);
         BitBoard { value: self.value | bits }
     }
 
     pub fn clear(&self, square: &Square) -> BitBoard {
-        BitBoard { value: self.value & !(1 << square.ordinal) }
+        BitBoard { value: self.value & !square.bit() }
     }
 
     pub fn clear_all(&self, squares: &[Square]) -> BitBoard {
-        let bits: u64 = squares.iter().map(|s| 1 << s.ordinal).fold(0, |a, b| a | b);
+        let bits: u64 = squares.iter().map(|s| s.bit()).fold(0, |a, b| a | b);
         BitBoard { value: self.value & !bits }
     }
 
     pub fn is_occupied(&self, square: &Square) -> bool {
-        self.value & (1 << square.ordinal) != 0
+        self.value & square.bit() != 0
     }
 }
 
@@ -52,9 +52,9 @@ impl Iterator for BitBoard {
         match self.value {
             0 => None,
             _ => {
-                let bit = self.value.trailing_zeros() as u8;
-                self.value &= !(1 << bit);
-                Some(Square::from_ordinal(bit))
+                let square = Square { ordinal: self.value.trailing_zeros() as u8 };
+                self.value &= !square.bit();
+                Some(square)
             }
         }
     }
