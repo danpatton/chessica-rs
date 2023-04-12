@@ -1,6 +1,6 @@
-use rand::Rng;
 use crate::bitboard::BitBoard;
 use crate::square::Square;
+use rand::Rng;
 
 pub const MAGIC_INDEX_BITS: u8 = 14;
 
@@ -9,7 +9,7 @@ pub struct MagicBitBoardTable {
     index_shift: u8,
     blocker_mask: BitBoard,
     magic: u64,
-    table: Vec<BitBoard>
+    table: Vec<BitBoard>,
 }
 
 impl MagicBitBoardTable {
@@ -41,7 +41,7 @@ pub fn find_bishop_magics(index_bits: u8) -> Vec<MagicBitBoardTable> {
 }
 
 struct Slider {
-    deltas: [[i8; 2]; 4]
+    deltas: [[i8; 2]; 4],
 }
 
 impl Slider {
@@ -81,11 +81,11 @@ impl Slider {
 }
 
 const ROOK: Slider = Slider {
-    deltas: [[0, 1], [1, 0], [0, -1], [-1, 0]]
+    deltas: [[0, 1], [1, 0], [0, -1], [-1, 0]],
 };
 
 const BISHOP: Slider = Slider {
-    deltas: [[-1, -1], [-1, 1], [1, -1], [1, 1]]
+    deltas: [[-1, -1], [-1, 1], [1, -1], [1, 1]],
 };
 
 fn find_magic_table(slider: &Slider, square: Square, index_bits: u8) -> MagicBitBoardTable {
@@ -108,7 +108,13 @@ fn find_magic_table(slider: &Slider, square: Square, index_bits: u8) -> MagicBit
 #[derive(Debug)]
 struct HashCollisionError;
 
-fn try_make_magic_table(slider: &Slider, square: Square, blocker_mask: BitBoard, index_bits: u8, magic: u64) -> Result<Vec<BitBoard>, HashCollisionError> {
+fn try_make_magic_table(
+    slider: &Slider,
+    square: Square,
+    blocker_mask: BitBoard,
+    index_bits: u8,
+    magic: u64,
+) -> Result<Vec<BitBoard>, HashCollisionError> {
     let index_shift = 64 - index_bits;
     let table_size = 1 << index_bits;
     let mut table = vec![BitBoard::empty(); table_size];
@@ -119,8 +125,7 @@ fn try_make_magic_table(slider: &Slider, square: Square, blocker_mask: BitBoard,
         let table_entry = &mut table[index];
         if table_entry.is_empty() {
             *table_entry = moves;
-        }
-        else if *table_entry != moves {
+        } else if *table_entry != moves {
             // non-constructive collision --> this is not the magic we're looking for
             return Err(HashCollisionError);
         }

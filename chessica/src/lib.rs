@@ -6,14 +6,14 @@ pub mod board;
 pub mod perft;
 
 mod bitboard;
-mod square;
-mod bitboard_masks;
 mod bitboard_magic;
+mod bitboard_masks;
+mod square;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Side {
     White,
-    Black
+    Black,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -23,7 +23,7 @@ pub enum Piece {
     Bishop,
     Rook,
     Queen,
-    King
+    King,
 }
 
 pub struct FenCharParseError;
@@ -43,7 +43,7 @@ impl Piece {
             b'b' => Ok((Piece::Bishop, Side::Black)),
             b'n' => Ok((Piece::Knight, Side::Black)),
             b'p' => Ok((Piece::Pawn, Side::Black)),
-            _ => Err(FenCharParseError)
+            _ => Err(FenCharParseError),
         }
     }
 
@@ -54,11 +54,11 @@ impl Piece {
             Piece::Bishop => 'b',
             Piece::Rook => 'r',
             Piece::Queen => 'q',
-            Piece::King => 'k'
+            Piece::King => 'k',
         };
         match side {
             Side::White => c.to_ascii_uppercase(),
-            _ => c
+            _ => c,
         }
     }
 }
@@ -99,10 +99,19 @@ impl Move {
     pub fn to_uci_string(&self) -> String {
         match self {
             Move::Regular(m) => format!("{}{}", m.from, m.to),
-            Move::ShortCastling(side) => String::from(if *side == Side::White { "e1g1" } else { "e8g8" }),
-            Move::LongCastling(side) => String::from(if *side == Side::White { "e1c1" } else { "e8c8" }),
+            Move::ShortCastling(side) => {
+                String::from(if *side == Side::White { "e1g1" } else { "e8g8" })
+            }
+            Move::LongCastling(side) => {
+                String::from(if *side == Side::White { "e1c1" } else { "e8c8" })
+            }
             Move::EnPassantCapture(ep) => format!("{}{}", ep.from, ep.to),
-            Move::Promotion(m) => format!("{}{}{}", m.from, m.to, m.promotion_piece.to_fen_char(Side::Black))
+            Move::Promotion(m) => format!(
+                "{}{}{}",
+                m.from,
+                m.to,
+                m.promotion_piece.to_fen_char(Side::Black)
+            ),
         }
     }
 }

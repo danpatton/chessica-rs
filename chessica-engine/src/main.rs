@@ -1,8 +1,8 @@
 extern crate chessica;
 
-use std::time::Instant;
 use chessica::board::Board;
 use chessica::perft::perft;
+use std::time::Instant;
 
 fn main() {
     let mut board = Board::starting_position();
@@ -19,5 +19,8 @@ fn main() {
     let duration_s = duration.as_secs_f32();
     let nps = (answer as f64) / (duration.as_micros() as f64);
 
-    println!("Computed perft {} in {:.2}s ({:.1} MNPS)", answer, duration_s, nps);
+    println!(
+        "Computed perft {} in {:.2}s ({:.1} MNPS)",
+        answer, duration_s, nps
+    );
 }

@@ -1,18 +1,20 @@
+use crate::bitboard::BitBoard;
+use crate::bitboard_masks::{BISHOPS_MOVE, BOUNDING_BOX, KINGS_MOVE, KNIGHTS_MOVE, ROOKS_MOVE};
 use std::fmt;
 use std::fmt::Formatter;
 use std::ops;
 use std::str::FromStr;
-use crate::bitboard::BitBoard;
-use crate::bitboard_masks::{BISHOPS_MOVE, BOUNDING_BOX, KINGS_MOVE, KNIGHTS_MOVE, ROOKS_MOVE};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Square {
-    pub ordinal: u8
+    pub ordinal: u8,
 }
 
 impl Square {
     pub fn from_coords(rank: u8, file: u8) -> Self {
-        Square { ordinal: rank * 8 + file }
+        Square {
+            ordinal: rank * 8 + file,
+        }
     }
 
     pub fn from_ordinal(ordinal: u8) -> Self {
@@ -43,7 +45,11 @@ impl Square {
         let new_rank = self.rank() as i8 + rank_delta;
         let new_file = self.file() as i8 + file_delta;
         let off_board = new_rank < 0 || new_rank > 7 || new_file < 0 || new_file > 7;
-        if off_board { None } else { Some(Square::from_coords(new_rank as u8, new_file as u8)) }
+        if off_board {
+            None
+        } else {
+            Some(Square::from_coords(new_rank as u8, new_file as u8))
+        }
     }
 
     pub fn knight_moves(self) -> BitBoard {
@@ -91,12 +97,11 @@ impl FromStr for Square {
             let file = b.get(0).unwrap();
             let rank = b.get(1).unwrap();
             if *file >= b'a' && *file <= b'h' && *rank >= b'1' && *rank <= b'8' {
-                return Ok(Square::from_coords(*rank - b'1', *file - b'a'))
+                return Ok(Square::from_coords(*rank - b'1', *file - b'a'));
             }
         }
         Err(ParseSquareError)
     }
-
 }
 
 impl fmt::Display for Square {
@@ -109,70 +114,198 @@ impl fmt::Display for Square {
 
 #[macro_export]
 macro_rules! sq {
-    (a1) => { Square::from_ordinal(0) };
-    (b1) => { Square::from_ordinal(1) };
-    (c1) => { Square::from_ordinal(2) };
-    (d1) => { Square::from_ordinal(3) };
-    (e1) => { Square::from_ordinal(4) };
-    (f1) => { Square::from_ordinal(5) };
-    (g1) => { Square::from_ordinal(6) };
-    (h1) => { Square::from_ordinal(7) };
-    (a2) => { Square::from_ordinal(8) };
-    (b2) => { Square::from_ordinal(9) };
-    (c2) => { Square::from_ordinal(10) };
-    (d2) => { Square::from_ordinal(11) };
-    (e2) => { Square::from_ordinal(12) };
-    (f2) => { Square::from_ordinal(13) };
-    (g2) => { Square::from_ordinal(14) };
-    (h2) => { Square::from_ordinal(15) };
-    (a3) => { Square::from_ordinal(16) };
-    (b3) => { Square::from_ordinal(17) };
-    (c3) => { Square::from_ordinal(18) };
-    (d3) => { Square::from_ordinal(19) };
-    (e3) => { Square::from_ordinal(20) };
-    (f3) => { Square::from_ordinal(21) };
-    (g3) => { Square::from_ordinal(22) };
-    (h3) => { Square::from_ordinal(23) };
-    (a4) => { Square::from_ordinal(24) };
-    (b4) => { Square::from_ordinal(25) };
-    (c4) => { Square::from_ordinal(26) };
-    (d4) => { Square::from_ordinal(27) };
-    (e4) => { Square::from_ordinal(28) };
-    (f4) => { Square::from_ordinal(29) };
-    (g4) => { Square::from_ordinal(30) };
-    (h4) => { Square::from_ordinal(31) };
-    (a5) => { Square::from_ordinal(32) };
-    (b5) => { Square::from_ordinal(33) };
-    (c5) => { Square::from_ordinal(34) };
-    (d5) => { Square::from_ordinal(35) };
-    (e5) => { Square::from_ordinal(36) };
-    (f5) => { Square::from_ordinal(37) };
-    (g5) => { Square::from_ordinal(38) };
-    (h5) => { Square::from_ordinal(39) };
-    (a6) => { Square::from_ordinal(40) };
-    (b6) => { Square::from_ordinal(41) };
-    (c6) => { Square::from_ordinal(42) };
-    (d6) => { Square::from_ordinal(43) };
-    (e6) => { Square::from_ordinal(44) };
-    (f6) => { Square::from_ordinal(45) };
-    (g6) => { Square::from_ordinal(46) };
-    (h6) => { Square::from_ordinal(47) };
-    (a7) => { Square::from_ordinal(48) };
-    (b7) => { Square::from_ordinal(49) };
-    (c7) => { Square::from_ordinal(50) };
-    (d7) => { Square::from_ordinal(51) };
-    (e7) => { Square::from_ordinal(52) };
-    (f7) => { Square::from_ordinal(53) };
-    (g7) => { Square::from_ordinal(54) };
-    (h7) => { Square::from_ordinal(55) };
-    (a8) => { Square::from_ordinal(56) };
-    (b8) => { Square::from_ordinal(57) };
-    (c8) => { Square::from_ordinal(58) };
-    (d8) => { Square::from_ordinal(59) };
-    (e8) => { Square::from_ordinal(60) };
-    (f8) => { Square::from_ordinal(61) };
-    (g8) => { Square::from_ordinal(62) };
-    (h8) => { Square::from_ordinal(63) };
+    (a1) => {
+        Square::from_ordinal(0)
+    };
+    (b1) => {
+        Square::from_ordinal(1)
+    };
+    (c1) => {
+        Square::from_ordinal(2)
+    };
+    (d1) => {
+        Square::from_ordinal(3)
+    };
+    (e1) => {
+        Square::from_ordinal(4)
+    };
+    (f1) => {
+        Square::from_ordinal(5)
+    };
+    (g1) => {
+        Square::from_ordinal(6)
+    };
+    (h1) => {
+        Square::from_ordinal(7)
+    };
+    (a2) => {
+        Square::from_ordinal(8)
+    };
+    (b2) => {
+        Square::from_ordinal(9)
+    };
+    (c2) => {
+        Square::from_ordinal(10)
+    };
+    (d2) => {
+        Square::from_ordinal(11)
+    };
+    (e2) => {
+        Square::from_ordinal(12)
+    };
+    (f2) => {
+        Square::from_ordinal(13)
+    };
+    (g2) => {
+        Square::from_ordinal(14)
+    };
+    (h2) => {
+        Square::from_ordinal(15)
+    };
+    (a3) => {
+        Square::from_ordinal(16)
+    };
+    (b3) => {
+        Square::from_ordinal(17)
+    };
+    (c3) => {
+        Square::from_ordinal(18)
+    };
+    (d3) => {
+        Square::from_ordinal(19)
+    };
+    (e3) => {
+        Square::from_ordinal(20)
+    };
+    (f3) => {
+        Square::from_ordinal(21)
+    };
+    (g3) => {
+        Square::from_ordinal(22)
+    };
+    (h3) => {
+        Square::from_ordinal(23)
+    };
+    (a4) => {
+        Square::from_ordinal(24)
+    };
+    (b4) => {
+        Square::from_ordinal(25)
+    };
+    (c4) => {
+        Square::from_ordinal(26)
+    };
+    (d4) => {
+        Square::from_ordinal(27)
+    };
+    (e4) => {
+        Square::from_ordinal(28)
+    };
+    (f4) => {
+        Square::from_ordinal(29)
+    };
+    (g4) => {
+        Square::from_ordinal(30)
+    };
+    (h4) => {
+        Square::from_ordinal(31)
+    };
+    (a5) => {
+        Square::from_ordinal(32)
+    };
+    (b5) => {
+        Square::from_ordinal(33)
+    };
+    (c5) => {
+        Square::from_ordinal(34)
+    };
+    (d5) => {
+        Square::from_ordinal(35)
+    };
+    (e5) => {
+        Square::from_ordinal(36)
+    };
+    (f5) => {
+        Square::from_ordinal(37)
+    };
+    (g5) => {
+        Square::from_ordinal(38)
+    };
+    (h5) => {
+        Square::from_ordinal(39)
+    };
+    (a6) => {
+        Square::from_ordinal(40)
+    };
+    (b6) => {
+        Square::from_ordinal(41)
+    };
+    (c6) => {
+        Square::from_ordinal(42)
+    };
+    (d6) => {
+        Square::from_ordinal(43)
+    };
+    (e6) => {
+        Square::from_ordinal(44)
+    };
+    (f6) => {
+        Square::from_ordinal(45)
+    };
+    (g6) => {
+        Square::from_ordinal(46)
+    };
+    (h6) => {
+        Square::from_ordinal(47)
+    };
+    (a7) => {
+        Square::from_ordinal(48)
+    };
+    (b7) => {
+        Square::from_ordinal(49)
+    };
+    (c7) => {
+        Square::from_ordinal(50)
+    };
+    (d7) => {
+        Square::from_ordinal(51)
+    };
+    (e7) => {
+        Square::from_ordinal(52)
+    };
+    (f7) => {
+        Square::from_ordinal(53)
+    };
+    (g7) => {
+        Square::from_ordinal(54)
+    };
+    (h7) => {
+        Square::from_ordinal(55)
+    };
+    (a8) => {
+        Square::from_ordinal(56)
+    };
+    (b8) => {
+        Square::from_ordinal(57)
+    };
+    (c8) => {
+        Square::from_ordinal(58)
+    };
+    (d8) => {
+        Square::from_ordinal(59)
+    };
+    (e8) => {
+        Square::from_ordinal(60)
+    };
+    (f8) => {
+        Square::from_ordinal(61)
+    };
+    (g8) => {
+        Square::from_ordinal(62)
+    };
+    (h8) => {
+        Square::from_ordinal(63)
+    };
 }
 
 #[cfg(test)]
