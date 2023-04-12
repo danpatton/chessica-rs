@@ -1,6 +1,9 @@
 use std::fmt;
 use std::fmt::Formatter;
+use std::ops;
 use std::str::FromStr;
+use crate::bitboard::BitBoard;
+use crate::bitboard_masks::{BISHOPS_MOVE, BOUNDING_BOX, KINGS_MOVE, KNIGHTS_MOVE, ROOKS_MOVE};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Square {
@@ -16,24 +19,63 @@ impl Square {
         Square { ordinal }
     }
 
-    pub fn bit(&self) -> u64 {
+    pub fn bit(self) -> u64 {
         1 << self.ordinal
     }
 
-    pub fn rank(&self) -> u8 {
+    pub fn rank(self) -> u8 {
         self.ordinal / 8
     }
 
-    pub fn file(&self) -> u8 {
+    pub fn file(self) -> u8 {
         self.ordinal % 8
     }
 
-    fn rank_char(&self) -> char {
+    fn rank_char(self) -> char {
         (b'1' + self.rank()) as char
     }
 
-    fn file_char(&self) -> char {
+    fn file_char(self) -> char {
         (b'a' + self.file()) as char
+    }
+
+    pub fn delta(self, rank_delta: i8, file_delta: i8) -> Option<Square> {
+        let new_rank = self.rank() as i8 + rank_delta;
+        let new_file = self.file() as i8 + file_delta;
+        let off_board = new_rank < 0 || new_rank > 7 || new_file < 0 || new_file > 7;
+        if off_board { None } else { Some(Square::from_coords(new_rank as u8, new_file as u8)) }
+    }
+
+    pub fn knight_moves(self) -> BitBoard {
+        BitBoard::new(KNIGHTS_MOVE[self.ordinal as usize])
+    }
+
+    pub fn bishop_moves(self) -> BitBoard {
+        BitBoard::new(BISHOPS_MOVE[self.ordinal as usize])
+    }
+
+    pub fn rook_moves(self) -> BitBoard {
+        BitBoard::new(ROOKS_MOVE[self.ordinal as usize])
+    }
+
+    pub fn queen_moves(self) -> BitBoard {
+        BitBoard::new(BISHOPS_MOVE[self.ordinal as usize] | ROOKS_MOVE[self.ordinal as usize])
+    }
+
+    pub fn king_moves(self) -> BitBoard {
+        BitBoard::new(KINGS_MOVE[self.ordinal as usize])
+    }
+
+    pub fn bounding_box(self, other: Square) -> BitBoard {
+        BitBoard::new(BOUNDING_BOX[self.ordinal as usize][other.ordinal as usize])
+    }
+}
+
+impl ops::Not for Square {
+    type Output = BitBoard;
+
+    fn not(self) -> Self::Output {
+        BitBoard { value: !self.bit() }
     }
 }
 
