@@ -13,7 +13,7 @@ fn main() {
     println!("complete");
 
     let start = Instant::now();
-    let answer = perft(&mut board, 6);
+    let answer = perft(&mut board, 7);
     let duration = start.elapsed();
 
     let duration_s = duration.as_secs_f32();
