@@ -664,10 +664,6 @@ impl Board {
             let mut allowed_moves = self.bishop_moves(own_bishop_or_queen, all_pieces)
                 & !own_pieces
                 & check_evasion_mask;
-            if allowed_moves.any() {
-                allowed_moves = self.bishop_moves(own_bishop_or_queen, all_pieces);
-                allowed_moves &= !own_pieces & check_evasion_mask
-            }
             if diagonal_pins.is_occupied(own_bishop_or_queen) {
                 allowed_moves &= diagonal_pins;
             } else if orthogonal_pins.is_occupied(own_bishop_or_queen) {
@@ -692,10 +688,6 @@ impl Board {
         for own_rook_or_queen in own_side.rooks | own_side.queens {
             let mut allowed_moves =
                 self.rook_moves(own_rook_or_queen, all_pieces) & !own_pieces & check_evasion_mask;
-            if allowed_moves.any() {
-                allowed_moves = self.rook_moves(own_rook_or_queen, all_pieces);
-                allowed_moves &= !own_pieces & check_evasion_mask
-            }
             if diagonal_pins.is_occupied(own_rook_or_queen) {
                 allowed_moves &= diagonal_pins;
             } else if orthogonal_pins.is_occupied(own_rook_or_queen) {
