@@ -861,7 +861,7 @@ impl Board {
         if let Some(ep) = self.ep_square {
             let ep_bb = BitBoard::empty().set(ep);
             let enemy_pawn = ep_bb.pawn_pushes(enemy_side.side);
-            let potential_capturers = unpinned_pawns & ep_bb.pawn_captures(enemy_side.side);
+            let potential_capturers = if diagonal_pins.is_occupied(ep) { unpinned_pawns | diagonally_pinned_pawns } else { unpinned_pawns } & ep_bb.pawn_captures(enemy_side.side);
             let own_king_rank = BitBoard::rank(own_king.rank());
             let capturers_on_own_king_rank = potential_capturers & own_king_rank;
             let mut can_capture_ep = true;
@@ -1024,6 +1024,7 @@ mod tests {
     const POSITION_5: &str = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
     const POSITION_6: &str =
         "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+    const POSITION_7: &str = "rn1qk1nr/pbppp1bp/1p4p1/4Pp2/3K4/8/PPPP1PPP/RNBQ1BNR w kq f6 0 1";
 
     #[test]
     fn test_parse_fen_starting_position() {
@@ -1082,6 +1083,10 @@ mod tests {
     #[test_case(POSITION_6, 2, 2_079 ; "position 6, depth 2")]
     #[test_case(POSITION_6, 3, 89_890 ; "position 6, depth 3")]
     #[test_case(POSITION_6, 4, 3_894_594 ; "position 6, depth 4")]
+    #[test_case(POSITION_7, 1, 33 ; "position 7, depth 1")]
+    #[test_case(POSITION_7, 2, 983 ; "position 7, depth 2")]
+    #[test_case(POSITION_7, 3, 28_964 ; "position 7, depth 3")]
+    #[test_case(POSITION_7, 4, 844_341 ; "position 7, depth 4")]
     fn test_perft(input_fen: &str, depth: u8, expected_result: u64) {
         let mut board = Board::parse_fen(input_fen).unwrap();
         let result = perft(&mut board, depth);

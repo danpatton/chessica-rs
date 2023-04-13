@@ -1,0 +1,6 @@
+perft 1 -0
+perft 1 -0
+perft 1 -0
+perft 2 -0
+perft 4 -0
+perft 6 -0
