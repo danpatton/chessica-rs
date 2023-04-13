@@ -667,7 +667,7 @@ impl Board {
             if diagonal_pins.is_occupied(own_bishop_or_queen) {
                 allowed_moves &= diagonal_pins;
             } else if orthogonal_pins.is_occupied(own_bishop_or_queen) {
-                allowed_moves &= orthogonal_pins;
+                allowed_moves &= (orthogonal_pins) & own_bishop_or_queen.rook_moves();
             }
 
             let piece = if own_side.bishops.is_occupied(own_bishop_or_queen) {
@@ -689,7 +689,7 @@ impl Board {
             let mut allowed_moves =
                 self.rook_moves(own_rook_or_queen, all_pieces) & !own_pieces & check_evasion_mask;
             if diagonal_pins.is_occupied(own_rook_or_queen) {
-                allowed_moves &= diagonal_pins;
+                allowed_moves &= diagonal_pins & own_rook_or_queen.bishop_moves();
             } else if orthogonal_pins.is_occupied(own_rook_or_queen) {
                 allowed_moves &= orthogonal_pins;
             }
@@ -1025,6 +1025,7 @@ mod tests {
     const POSITION_6: &str =
         "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
     const POSITION_7: &str = "rn1qk1nr/pbppp1bp/1p4p1/4Pp2/3K4/8/PPPP1PPP/RNBQ1BNR w kq f6 0 1";
+    const POSITION_8: &str = "rnb1k1nr/pppp1ppp/8/4p3/1b1P3q/2Q5/PPP1PPPP/RNB1KBNR w KQkq - 0 4";
 
     #[test]
     fn test_parse_fen_starting_position() {
@@ -1051,6 +1052,8 @@ mod tests {
     #[test_case(POSITION_4, 6  ; "position 4")]
     #[test_case(POSITION_5, 44 ; "position 5")]
     #[test_case(POSITION_6, 46 ; "position 6")]
+    #[test_case(POSITION_7, 33 ; "position 7")]
+    #[test_case(POSITION_8, 23 ; "position 8")]
     fn test_legal_moves(input_fen: &str, expected_num_legal_moves: usize) {
         let board = Board::parse_fen(input_fen).unwrap();
         let legal_moves = board.legal_moves();

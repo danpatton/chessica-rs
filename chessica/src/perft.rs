@@ -16,3 +16,17 @@ pub fn perft(board: &mut Board, depth: u8) -> u64 {
         }
     }
 }
+
+pub fn perft_split(board: &mut Board, depth: u8) -> u64 {
+    let legal_moves = board.legal_moves();
+    let mut count: u64 = 0;
+    for move_ in legal_moves.iter() {
+        board.push(move_);
+        let p = perft(board, depth - 1);
+        count += p;
+        let uci = move_.to_uci_string();
+        println!("2. {} moves = {}", uci, p);
+        board.pop();
+    }
+    count
+}
