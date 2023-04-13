@@ -1,26 +1,35 @@
 extern crate chessica;
 
+use std::env;
+use std::process::exit;
 use chessica::board::Board;
 use chessica::perft::perft;
 use std::time::Instant;
 
 fn main() {
-    let mut board = Board::starting_position();
+    let args: Vec<String> = env::args().collect();
 
-    // ensure magic bitboards are initialised
-    print!("Initialising... ");
-    perft(&mut board, 2);
-    println!("complete");
-
-    let start = Instant::now();
-    let answer = perft(&mut board, 7);
-    let duration = start.elapsed();
-
-    let duration_s = duration.as_secs_f32();
-    let nps = (answer as f64) / (duration.as_micros() as f64);
-
-    println!(
-        "Computed perft {} in {:.2}s ({:.1} MNPS)",
-        answer, duration_s, nps
-    );
+    match args.get(1) {
+        Some(command) => {
+            match command.as_str() {
+                "perft" => {
+                    let depth: u8 = args.get(2).and_then(|d| d.parse().ok()).expect("Usage: perft <depth> <fen>");
+                    let fen = args.get(3).expect("Usage: perft <depth> <fen>");
+                    let mut board = Board::parse_fen(fen).expect("Invalid Fen");
+                    let start = Instant::now();
+                    let moves = perft(&mut board, depth);
+                    let duration = start.elapsed();
+                    println!("perft({}) moves = {} ({:.2}s)", depth, moves, duration.as_secs_f32());
+                },
+                _ => {
+                    println!("Unknown command: {}", command);
+                    exit(-1);
+                }
+            }
+        },
+        _ => {
+            println!("Usage: <command> [args]");
+            exit(-1);
+        }
+    }
 }
