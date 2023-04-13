@@ -1040,6 +1040,8 @@ mod tests {
     #[test_case(POSITION_4 ; "position 4")]
     #[test_case(POSITION_5 ; "position 5")]
     #[test_case(POSITION_6 ; "position 6")]
+    #[test_case(POSITION_7 ; "position 7")]
+    #[test_case(POSITION_8 ; "position 8")]
     fn test_fen_round_trip(input_fen: &str) {
         let board = Board::parse_fen(input_fen).unwrap();
         let output_fen = board.to_fen_string();
@@ -1090,6 +1092,10 @@ mod tests {
     #[test_case(POSITION_7, 2, 983 ; "position 7, depth 2")]
     #[test_case(POSITION_7, 3, 28_964 ; "position 7, depth 3")]
     #[test_case(POSITION_7, 4, 844_341 ; "position 7, depth 4")]
+    #[test_case(POSITION_8, 1, 23 ; "position 8, depth 1")]
+    #[test_case(POSITION_8, 2, 1009 ; "position 8, depth 2")]
+    #[test_case(POSITION_8, 3, 26_125 ; "position 8, depth 3")]
+    #[test_case(POSITION_8, 4, 1_072_898 ; "position 8, depth 4")]
     fn test_perft(input_fen: &str, depth: u8, expected_result: u64) {
         let mut board = Board::parse_fen(input_fen).unwrap();
         let result = perft(&mut board, depth);
