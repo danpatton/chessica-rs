@@ -861,7 +861,11 @@ impl Board {
         if let Some(ep) = self.ep_square {
             let ep_bb = BitBoard::empty().set(ep);
             let enemy_pawn = ep_bb.pawn_pushes(enemy_side.side);
-            let potential_capturers = if diagonal_pins.is_occupied(ep) { unpinned_pawns | diagonally_pinned_pawns } else { unpinned_pawns } & ep_bb.pawn_captures(enemy_side.side);
+            let potential_capturers = if diagonal_pins.is_occupied(ep) {
+                unpinned_pawns | diagonally_pinned_pawns
+            } else {
+                unpinned_pawns
+            } & ep_bb.pawn_captures(enemy_side.side);
             let own_king_rank = BitBoard::rank(own_king.rank());
             let capturers_on_own_king_rank = potential_capturers & own_king_rank;
             let mut can_capture_ep = true;
