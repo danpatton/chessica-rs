@@ -1,5 +1,7 @@
+extern crate enum_map;
 extern crate tabled;
 
+use enum_map::Enum;
 use crate::square::Square;
 
 pub mod board;
@@ -9,14 +11,15 @@ mod bitboard;
 mod bitboard_magic;
 mod bitboard_masks;
 mod square;
+mod zobrist;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
 pub enum Side {
     White,
     Black,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
 pub enum Piece {
     Pawn,
     Knight,
