@@ -18,6 +18,11 @@ impl BitBoard {
         BitBoard { value }
     }
 
+    pub fn from_squares(squares: &[Square]) -> Self {
+        let bits: u64 = squares.iter().map(|s| s.bit()).fold(0, |a, b| a | b);
+        BitBoard { value: bits }
+    }
+
     pub fn empty() -> Self {
         BitBoard { value: 0 }
     }

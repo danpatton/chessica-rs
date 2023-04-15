@@ -21,6 +21,10 @@ impl Square {
         Square { ordinal }
     }
 
+    pub fn bb(self) -> BitBoard {
+        BitBoard { value: self.bit() }
+    }
+
     pub fn bit(self) -> u64 {
         1 << self.ordinal
     }

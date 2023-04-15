@@ -10,9 +10,6 @@ use crate::square::Square;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
 
-const SHORT_CASTLING: u8 = 0x1;
-const LONG_CASTLING: u8 = 0x2;
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct MoveUndoInfo {
     castling_rights: u8,
@@ -21,25 +18,12 @@ struct MoveUndoInfo {
 }
 
 impl MoveUndoInfo {
-    fn new(
-        white: &BoardSide,
-        black: &BoardSide,
-        half_move_clock: u8,
-        ep_square: Option<Square>,
-    ) -> Self {
+    fn new(castling_rights: u8, half_move_clock: u8, ep_square: Option<Square>) -> Self {
         MoveUndoInfo {
-            castling_rights: white.castling_rights | (black.castling_rights << 2),
+            castling_rights,
             half_move_clock,
             ep_square,
         }
-    }
-
-    fn white_castling_rights(&self) -> u8 {
-        self.castling_rights & 0x3
-    }
-
-    fn black_castling_rights(&self) -> u8 {
-        self.castling_rights >> 2
     }
 }
 
@@ -50,193 +34,18 @@ struct Checks {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct BoardSide {
-    side: Side,
-    pawns: BitBoard,
-    knights: BitBoard,
-    bishops: BitBoard,
-    rooks: BitBoard,
-    queens: BitBoard,
-    king: BitBoard,
-    castling_rights: u8,
-}
-
-impl BoardSide {
-    fn empty(side: Side) -> Self {
-        BoardSide {
-            side,
-            pawns: BitBoard::empty(),
-            knights: BitBoard::empty(),
-            bishops: BitBoard::empty(),
-            rooks: BitBoard::empty(),
-            queens: BitBoard::empty(),
-            king: BitBoard::empty(),
-            castling_rights: 0,
-        }
-    }
-
-    fn starting_position(side: Side) -> Self {
-        let pawn_rank = if side == Side::White { 1 } else { 6 };
-        let rooks = match side {
-            Side::White => [sq!(a1), sq!(h1)],
-            Side::Black => [sq!(a8), sq!(h8)],
-        };
-        let knights = match side {
-            Side::White => [sq!(b1), sq!(g1)],
-            Side::Black => [sq!(b8), sq!(g8)],
-        };
-        let bishops = match side {
-            Side::White => [sq!(c1), sq!(f1)],
-            Side::Black => [sq!(c8), sq!(f8)],
-        };
-        let queens = match side {
-            Side::White => [sq!(d1)],
-            Side::Black => [sq!(d8)],
-        };
-        let king = match side {
-            Side::White => [sq!(e1)],
-            Side::Black => [sq!(e8)],
-        };
-        BoardSide {
-            side,
-            pawns: BitBoard::rank(pawn_rank),
-            knights: BitBoard::empty().set_all(&knights),
-            bishops: BitBoard::empty().set_all(&bishops),
-            rooks: BitBoard::empty().set_all(&rooks),
-            queens: BitBoard::empty().set_all(&queens),
-            king: BitBoard::empty().set_all(&king),
-            castling_rights: SHORT_CASTLING | LONG_CASTLING,
-        }
-    }
-
-    pub fn all_pieces(&self) -> BitBoard {
-        self.pawns | self.bishops | self.knights | self.rooks | self.queens | self.king
-    }
-
-    pub fn can_castle_short(&self) -> bool {
-        (self.castling_rights & SHORT_CASTLING) == SHORT_CASTLING
-    }
-
-    pub fn can_castle_long(&self) -> bool {
-        (self.castling_rights & LONG_CASTLING) == LONG_CASTLING
-    }
-
-    pub fn can_castle(&self) -> bool {
-        self.castling_rights != 0
-    }
-
-    pub fn set_castling_rights(&mut self, castling_rights: u8) {
-        self.castling_rights = castling_rights;
-    }
-
-    pub fn get_piece(&self, square: Square) -> Option<Piece> {
-        if self.pawns.is_occupied(square) {
-            Some(Piece::Pawn)
-        } else if self.bishops.is_occupied(square) {
-            Some(Piece::Bishop)
-        } else if self.knights.is_occupied(square) {
-            Some(Piece::Knight)
-        } else if self.rooks.is_occupied(square) {
-            Some(Piece::Rook)
-        } else if self.queens.is_occupied(square) {
-            Some(Piece::Queen)
-        } else if self.king.is_occupied(square) {
-            Some(Piece::King)
-        } else {
-            None
-        }
-    }
-
-    fn add_piece(&mut self, piece: Piece, square: Square) {
-        match piece {
-            Piece::Pawn => self.pawns |= square,
-            Piece::Bishop => self.bishops |= square,
-            Piece::Knight => self.knights |= square,
-            Piece::Rook => self.rooks |= square,
-            Piece::Queen => self.queens |= square,
-            Piece::King => self.king |= square,
-        }
-    }
-
-    fn remove_piece(&mut self, piece: Piece, square: Square) {
-        match piece {
-            Piece::Pawn => self.pawns &= !square,
-            Piece::Bishop => self.bishops &= !square,
-            Piece::Knight => self.knights &= !square,
-            Piece::Rook => self.rooks &= !square,
-            Piece::Queen => self.queens &= !square,
-            Piece::King => self.king &= !square,
-        }
-    }
-
-    fn apply_move(&mut self, piece: Piece, from: Square, to: Square) {
-        self.remove_piece(piece, from);
-        self.add_piece(piece, to);
-        match piece {
-            Piece::King => {
-                self.castling_rights = 0;
-            }
-            Piece::Rook => {
-                let starting_rank: u8 = if self.side == Side::White { 0 } else { 7 };
-                if from.rank() == starting_rank {
-                    match from.file() {
-                        0 => {
-                            self.castling_rights &= !LONG_CASTLING;
-                        }
-                        7 => {
-                            self.castling_rights &= !SHORT_CASTLING;
-                        }
-                        _ => {}
-                    };
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn undo_move(&mut self, piece: Piece, from: Square, to: Square) {
-        self.remove_piece(piece, to);
-        self.add_piece(piece, from);
-    }
-
-    fn apply_capture(&mut self, piece: Piece, square: Square) {
-        self.remove_piece(piece, square);
-        if piece == Piece::Rook {
-            let starting_rank: u8 = if self.side == Side::White { 0 } else { 7 };
-            if square.rank() == starting_rank {
-                match square.file() {
-                    0 => {
-                        self.castling_rights &= !LONG_CASTLING;
-                    }
-                    7 => {
-                        self.castling_rights &= !SHORT_CASTLING;
-                    }
-                    _ => {}
-                };
-            }
-        }
-    }
-
-    fn undo_capture(&mut self, piece: Piece, square: Square) {
-        self.add_piece(piece, square);
-    }
-
-    fn apply_promotion(&mut self, from: Square, to: Square, promotion: Piece) {
-        self.remove_piece(Piece::Pawn, from);
-        self.add_piece(promotion, to);
-    }
-
-    fn undo_promotion(&mut self, from: Square, to: Square, promotion: Piece) {
-        self.remove_piece(promotion, to);
-        self.add_piece(Piece::Pawn, from);
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Board {
     side_to_move: Side,
-    white_side: BoardSide,
-    black_side: BoardSide,
+    side_to_not_move: Side,
+    white_pieces: BitBoard,
+    black_pieces: BitBoard,
+    pawns: BitBoard,
+    bishops: BitBoard,
+    knights: BitBoard,
+    rooks: BitBoard,
+    queens: BitBoard,
+    kings: BitBoard,
+    castling_rights: u8,
     half_move_clock: u8,
     full_move_number: u16,
     ep_square: Option<Square>,
@@ -250,11 +59,47 @@ pub struct FenParseError;
 pub struct IllegalMoveError;
 
 impl Board {
+    fn back_rank(side: Side) -> u8 {
+        match side {
+            Side::White => 0,
+            Side::Black => 7
+        }
+    }
+
+    fn pawn_double_push_rank(side: Side) -> u8 {
+        match side {
+            Side::White => 3,
+            Side::Black => 4
+        }
+    }
+
+    fn short_castling_flag(side: Side) -> u8 {
+        match side {
+            Side::White => 0x1,
+            Side::Black => 0x2
+        }
+    }
+
+    fn long_castling_flag(side: Side) -> u8 {
+        match side {
+            Side::White => 0x4,
+            Side::Black => 0x8
+        }
+    }
+
     pub fn starting_position() -> Self {
         Board {
             side_to_move: Side::White,
-            white_side: BoardSide::starting_position(Side::White),
-            black_side: BoardSide::starting_position(Side::Black),
+            side_to_not_move: Side::Black,
+            white_pieces: BitBoard::rank(0) | BitBoard::rank(1),
+            black_pieces: BitBoard::rank(6) | BitBoard::rank(7),
+            pawns: BitBoard::rank(1) | BitBoard::rank(6),
+            knights: BitBoard::from_squares(&[sq!(b1), sq!(g1), sq!(b8), sq!(g8)]),
+            bishops: BitBoard::from_squares(&[sq!(c1), sq!(f1), sq!(c8), sq!(f8)]),
+            rooks: BitBoard::from_squares(&[sq!(a1), sq!(h1), sq!(a8), sq!(h8)]),
+            queens: BitBoard::from_squares(&[sq!(d1), sq!(d8)]),
+            kings: BitBoard::from_squares(&[sq!(e1), sq!(e8)]),
+            castling_rights: 0xf,
             half_move_clock: 0,
             full_move_number: 1,
             ep_square: None,
@@ -275,28 +120,53 @@ impl Board {
                 return Err(FenParseError);
             }
 
-            let side_to_move = if &captures[2] == "w" {
-                Side::White
+            let (side_to_move, side_to_not_move) = if &captures[2] == "w" {
+                (Side::White, Side::Black)
             } else {
-                Side::Black
+                (Side::Black, Side::White)
             };
-            let castling_rights = &captures[3];
+            let castling_rights_str = &captures[3];
 
-            let mut white_side = BoardSide::empty(Side::White);
-            let mut black_side = BoardSide::empty(Side::Black);
+            let mut castling_rights: u8 = 0;
+            if castling_rights_str.contains("K") {
+                castling_rights |= Board::short_castling_flag(Side::White);
+            }
+            if castling_rights_str.contains("Q") {
+                castling_rights |= Board::long_castling_flag(Side::White);
+            }
+            if castling_rights_str.contains("k") {
+                castling_rights |= Board::short_castling_flag(Side::Black);
+            }
+            if castling_rights_str.contains("q") {
+                castling_rights |= Board::long_castling_flag(Side::Black);
+            }
 
-            if castling_rights.contains("K") {
-                white_side.castling_rights |= SHORT_CASTLING;
-            }
-            if castling_rights.contains("Q") {
-                white_side.castling_rights |= LONG_CASTLING
-            }
-            if castling_rights.contains("k") {
-                black_side.castling_rights |= SHORT_CASTLING;
-            }
-            if castling_rights.contains("q") {
-                black_side.castling_rights |= LONG_CASTLING
-            }
+            let ep_square_spec = &captures[4];
+            let ep_square: Option<Square> = match ep_square_spec {
+                "-" => None,
+                _ => ep_square_spec.parse().ok(),
+            };
+
+            let half_move_clock: u8 = captures[5].parse().unwrap();
+            let full_move_number: u16 = captures[6].parse().unwrap();
+
+            let mut board = Board {
+                side_to_move,
+                side_to_not_move,
+                white_pieces: BitBoard::empty(),
+                black_pieces: BitBoard::empty(),
+                pawns: BitBoard::empty(),
+                bishops: BitBoard::empty(),
+                knights: BitBoard::empty(),
+                rooks: BitBoard::empty(),
+                queens: BitBoard::empty(),
+                kings: BitBoard::empty(),
+                castling_rights,
+                half_move_clock,
+                full_move_number,
+                ep_square,
+                move_stack: vec![],
+            };
 
             for (i, row) in rows.iter().enumerate() {
                 let rank = i as u8;
@@ -310,10 +180,7 @@ impl Board {
                     } else {
                         if let Ok((piece, side)) = Piece::parse_fen_char(c) {
                             let square = Square::from_coords(rank, file);
-                            match side {
-                                Side::White => white_side.add_piece(piece, square),
-                                _ => black_side.add_piece(piece, square),
-                            };
+                            board.add_piece(side, piece, square);
                         } else {
                             return Err(FenParseError);
                         }
@@ -321,25 +188,6 @@ impl Board {
                     }
                 }
             }
-
-            let ep_square_spec = &captures[4];
-            let ep_square: Option<Square> = match ep_square_spec {
-                "-" => None,
-                _ => ep_square_spec.parse().ok(),
-            };
-
-            let half_move_clock: u8 = captures[5].parse().unwrap();
-            let full_move_number: u16 = captures[6].parse().unwrap();
-
-            let board = Board {
-                side_to_move,
-                white_side,
-                black_side,
-                half_move_clock,
-                full_move_number,
-                ep_square,
-                move_stack: vec![],
-            };
 
             return Ok(board);
         }
@@ -352,13 +200,13 @@ impl Board {
             let mut blank_square_count: u8 = 0;
             for file in 0u8..8 {
                 let square = Square::from_coords(rank, file);
-                if let Some(white_piece) = self.white_side.get_piece(square) {
+                if let Some(white_piece) = self.get_piece(Side::White, square) {
                     if blank_square_count > 0 {
                         sb.append(blank_square_count.to_string());
                         blank_square_count = 0;
                     }
                     sb.append(white_piece.to_fen_char(Side::White));
-                } else if let Some(black_piece) = self.black_side.get_piece(square) {
+                } else if let Some(black_piece) = self.get_piece(Side::Black, square) {
                     if blank_square_count > 0 {
                         sb.append(blank_square_count.to_string());
                         blank_square_count = 0;
@@ -381,19 +229,19 @@ impl Board {
         } else {
             " b "
         });
-        if !self.white_side.can_castle() && !self.black_side.can_castle() {
+        if self.castling_rights == 0 {
             sb.append("-");
         } else {
-            if self.white_side.can_castle_short() {
+            if self.can_castle_short(Side::White) {
                 sb.append("K");
             }
-            if self.white_side.can_castle_long() {
+            if self.can_castle_long(Side::White) {
                 sb.append("Q");
             }
-            if self.black_side.can_castle_short() {
+            if self.can_castle_short(Side::Black) {
                 sb.append("k");
             }
-            if self.black_side.can_castle_long() {
+            if self.can_castle_long(Side::Black) {
                 sb.append("q");
             }
         }
@@ -411,6 +259,125 @@ impl Board {
         sb.string().unwrap()
     }
 
+    fn get_pieces(&self, side: Side) -> BitBoard {
+        match side {
+            Side::White => self.white_pieces,
+            Side::Black => self.black_pieces
+        }
+    }
+
+    pub fn get_piece(&self, side: Side, square: Square) -> Option<Piece> {
+        let side_pieces = self.get_pieces(side);
+        if !side_pieces.is_occupied(square) {
+            return None;
+        }
+        if self.pawns.is_occupied(square) {
+            Some(Piece::Pawn)
+        } else if self.bishops.is_occupied(square) {
+            Some(Piece::Bishop)
+        } else if self.knights.is_occupied(square) {
+            Some(Piece::Knight)
+        } else if self.rooks.is_occupied(square) {
+            Some(Piece::Rook)
+        } else if self.queens.is_occupied(square) {
+            Some(Piece::Queen)
+        } else if self.kings.is_occupied(square) {
+            Some(Piece::King)
+        } else {
+            None
+        }
+    }
+
+    fn add_piece(&mut self, side: Side, piece: Piece, square: Square) {
+        match side {
+            Side::White => self.white_pieces |= square,
+            Side::Black => self.black_pieces |= square,
+        };
+        match piece {
+            Piece::Pawn => self.pawns |= square,
+            Piece::Bishop => self.bishops |= square,
+            Piece::Knight => self.knights |= square,
+            Piece::Rook => self.rooks |= square,
+            Piece::Queen => self.queens |= square,
+            Piece::King => self.kings |= square,
+        }
+    }
+
+    fn remove_piece(&mut self, side: Side, piece: Piece, square: Square) {
+        match side {
+            Side::White => self.white_pieces &= !square,
+            Side::Black => self.black_pieces &= !square,
+        };
+        match piece {
+            Piece::Pawn => self.pawns &= !square,
+            Piece::Bishop => self.bishops &= !square,
+            Piece::Knight => self.knights &= !square,
+            Piece::Rook => self.rooks &= !square,
+            Piece::Queen => self.queens &= !square,
+            Piece::King => self.kings &= !square,
+        }
+    }
+
+    fn apply_move(&mut self, side: Side, piece: Piece, from: Square, to: Square) {
+        self.remove_piece(side, piece, from);
+        self.add_piece(side, piece, to);
+        match piece {
+            Piece::King => {
+                self.castling_rights &= !(Board::long_castling_flag(side) | Board::short_castling_flag(side));
+            }
+            Piece::Rook => {
+                if from.rank() == Board::back_rank(side) {
+                    match from.file() {
+                        0 => {
+                            self.castling_rights &= !Board::long_castling_flag(side);
+                        }
+                        7 => {
+                            self.castling_rights &= !Board::short_castling_flag(side);
+                        }
+                        _ => {}
+                    };
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn undo_move(&mut self, side: Side, piece: Piece, from: Square, to: Square) {
+        self.remove_piece(side, piece, to);
+        self.add_piece(side, piece, from);
+    }
+
+    fn apply_capture(&mut self, side: Side, piece: Piece, square: Square) {
+        self.remove_piece(side, piece, square);
+        if piece == Piece::Rook {
+            if square.rank() == Board::back_rank(side) {
+                match square.file() {
+                    0 => {
+                        self.castling_rights &= !Board::long_castling_flag(side);
+                    }
+                    7 => {
+                        self.castling_rights &= !Board::short_castling_flag(side);
+                    }
+                    _ => {}
+                };
+            }
+        }
+    }
+
+    fn undo_capture(&mut self, side: Side, piece: Piece, square: Square) {
+        self.add_piece(side, piece, square);
+    }
+
+    fn apply_promotion(&mut self, side: Side, from: Square, to: Square, promotion: Piece) {
+        self.remove_piece(side, Piece::Pawn, from);
+        self.add_piece(side, promotion, to);
+    }
+
+    fn undo_promotion(&mut self, side: Side, from: Square, to: Square, promotion: Piece) {
+        self.remove_piece(side, promotion, to);
+        self.add_piece(side, Piece::Pawn, from);
+    }
+
     pub fn push_uci(&mut self, uci_move: &str) -> Result<(), IllegalMoveError> {
         let legal_moves = self.legal_moves();
         let selected_move = legal_moves.iter().find(|&m| m.to_uci_string() == uci_move);
@@ -422,8 +389,7 @@ impl Board {
 
     pub fn push(&mut self, move_: &Move) {
         let move_undo_info = MoveUndoInfo::new(
-            &self.white_side,
-            &self.black_side,
+            self.castling_rights,
             self.half_move_clock,
             self.ep_square,
         );
@@ -455,11 +421,7 @@ impl Board {
             }
         };
         self.move_stack.push((move_.clone(), move_undo_info));
-        self.side_to_move = if self.side_to_move == Side::White {
-            Side::Black
-        } else {
-            Side::White
-        };
+        std::mem::swap(&mut self.side_to_move, &mut self.side_to_not_move);
         if self.side_to_move == Side::White {
             self.full_move_number += 1;
         }
@@ -467,25 +429,17 @@ impl Board {
 
     pub fn pop(&mut self) {
         if let Some((move_, move_undo_info)) = self.move_stack.pop() {
-            let prev_move_side = if self.side_to_move == Side::White {
-                Side::Black
-            } else {
-                Side::White
-            };
             match move_ {
-                Regular(m) => self.undo_regular_move(&m, prev_move_side),
-                ShortCastling(_side) => self.undo_short_castling_move(prev_move_side),
-                LongCastling(_side) => self.undo_long_castling_move(prev_move_side),
-                EnPassantCapture(m) => self.undo_ep_capture_move(&m, prev_move_side),
-                Promotion(m) => self.undo_promotion_move(&m, prev_move_side),
+                Regular(m) => self.undo_regular_move(&m),
+                ShortCastling(_side) => self.undo_short_castling_move(),
+                LongCastling(_side) => self.undo_long_castling_move(),
+                EnPassantCapture(m) => self.undo_ep_capture_move(&m),
+                Promotion(m) => self.undo_promotion_move(&m),
             };
-            self.white_side
-                .set_castling_rights(move_undo_info.white_castling_rights());
-            self.black_side
-                .set_castling_rights(move_undo_info.black_castling_rights());
+            self.castling_rights = move_undo_info.castling_rights;
             self.ep_square = move_undo_info.ep_square;
-            self.side_to_move = prev_move_side;
             self.half_move_clock = move_undo_info.half_move_clock;
+            std::mem::swap(&mut self.side_to_move, &mut self.side_to_not_move);
             if self.side_to_move == Side::Black {
                 self.full_move_number -= 1;
             }
@@ -493,15 +447,10 @@ impl Board {
     }
 
     fn apply_regular_move(&mut self, m: &RegularMove) {
-        let (own_side, enemy_side) = match self.side_to_move {
-            Side::White => (&mut self.white_side, &mut self.black_side),
-            Side::Black => (&mut self.black_side, &mut self.white_side),
-        };
-        own_side.apply_move(m.piece, m.from, m.to);
         if let Some(captured_piece) = m.captured_piece {
-            enemy_side.apply_capture(captured_piece, m.to);
+            self.apply_capture(self.side_to_not_move, captured_piece, m.to);
         } else if m.piece == Piece::Pawn {
-            if own_side.side == Side::White {
+            if self.side_to_move == Side::White {
                 if m.from.rank() == 1 && m.to.rank() == 3 {
                     self.ep_square = m.from.delta(1, 0);
                 }
@@ -511,111 +460,102 @@ impl Board {
                 }
             }
         }
+        self.apply_move(self.side_to_move, m.piece, m.from, m.to);
     }
 
-    fn undo_regular_move(&mut self, m: &RegularMove, move_side: Side) {
-        let (own_side, enemy_side) = match move_side {
-            Side::White => (&mut self.white_side, &mut self.black_side),
-            Side::Black => (&mut self.black_side, &mut self.white_side),
-        };
-        own_side.undo_move(m.piece, m.from, m.to);
+    fn undo_regular_move(&mut self, m: &RegularMove) {
+        self.undo_move(self.side_to_not_move, m.piece, m.from, m.to);
         if let Some(captured_piece) = m.captured_piece {
-            enemy_side.undo_capture(captured_piece, m.to);
+            self.undo_capture(self.side_to_move, captured_piece, m.to);
         }
     }
 
     fn apply_short_castling_move(&mut self) {
-        let (own_side, king, king_to, rook, rook_to) = match self.side_to_move {
-            Side::White => (&mut self.white_side, sq!(e1), sq!(g1), sq!(h1), sq!(f1)),
-            Side::Black => (&mut self.black_side, sq!(e8), sq!(g8), sq!(h8), sq!(f8)),
+        let (king, king_to, rook, rook_to) = match self.side_to_move {
+            Side::White => (sq!(e1), sq!(g1), sq!(h1), sq!(f1)),
+            Side::Black => (sq!(e8), sq!(g8), sq!(h8), sq!(f8)),
         };
-        own_side.apply_move(Piece::King, king, king_to);
-        own_side.apply_move(Piece::Rook, rook, rook_to);
+        self.apply_move(self.side_to_move,Piece::King, king, king_to);
+        self.apply_move(self.side_to_move, Piece::Rook, rook, rook_to);
     }
 
-    fn undo_short_castling_move(&mut self, move_side: Side) {
-        let (own_side, king, king_to, rook, rook_to) = match move_side {
-            Side::White => (&mut self.white_side, sq!(e1), sq!(g1), sq!(h1), sq!(f1)),
-            Side::Black => (&mut self.black_side, sq!(e8), sq!(g8), sq!(h8), sq!(f8)),
+    fn undo_short_castling_move(&mut self) {
+        let (king, king_to, rook, rook_to) = match self.side_to_not_move {
+            Side::White => (sq!(e1), sq!(g1), sq!(h1), sq!(f1)),
+            Side::Black => (sq!(e8), sq!(g8), sq!(h8), sq!(f8)),
         };
-        own_side.undo_move(Piece::King, king, king_to);
-        own_side.undo_move(Piece::Rook, rook, rook_to);
+        self.undo_move(self.side_to_not_move, Piece::King, king, king_to);
+        self.undo_move(self.side_to_not_move, Piece::Rook, rook, rook_to);
     }
 
     fn apply_long_castling_move(&mut self) {
-        let (own_side, king, king_to, rook, rook_to) = match self.side_to_move {
-            Side::White => (&mut self.white_side, sq!(e1), sq!(c1), sq!(a1), sq!(d1)),
-            Side::Black => (&mut self.black_side, sq!(e8), sq!(c8), sq!(a8), sq!(d8)),
+        let (king, king_to, rook, rook_to) = match self.side_to_move {
+            Side::White => (sq!(e1), sq!(c1), sq!(a1), sq!(d1)),
+            Side::Black => (sq!(e8), sq!(c8), sq!(a8), sq!(d8)),
         };
-        own_side.apply_move(Piece::King, king, king_to);
-        own_side.apply_move(Piece::Rook, rook, rook_to);
+        self.apply_move(self.side_to_move, Piece::King, king, king_to);
+        self.apply_move(self.side_to_move, Piece::Rook, rook, rook_to);
     }
 
-    fn undo_long_castling_move(&mut self, move_side: Side) {
-        let (own_side, king, king_to, rook, rook_to) = match move_side {
-            Side::White => (&mut self.white_side, sq!(e1), sq!(c1), sq!(a1), sq!(d1)),
-            Side::Black => (&mut self.black_side, sq!(e8), sq!(c8), sq!(a8), sq!(d8)),
+    fn undo_long_castling_move(&mut self) {
+        let (king, king_to, rook, rook_to) = match self.side_to_not_move {
+            Side::White => (sq!(e1), sq!(c1), sq!(a1), sq!(d1)),
+            Side::Black => (sq!(e8), sq!(c8), sq!(a8), sq!(d8)),
         };
-        own_side.undo_move(Piece::King, king, king_to);
-        own_side.undo_move(Piece::Rook, rook, rook_to);
+        self.undo_move(self.side_to_not_move, Piece::King, king, king_to);
+        self.undo_move(self.side_to_not_move, Piece::Rook, rook, rook_to);
     }
 
     fn apply_ep_capture_move(&mut self, m: &EnPassantCaptureMove) {
-        let (own_side, enemy_side) = match self.side_to_move {
-            Side::White => (&mut self.white_side, &mut self.black_side),
-            Side::Black => (&mut self.black_side, &mut self.white_side),
-        };
-        own_side.apply_move(Piece::Pawn, m.from, m.to);
-        enemy_side.apply_capture(Piece::Pawn, m.captured_pawn);
+        self.apply_capture(self.side_to_not_move, Piece::Pawn, m.captured_pawn);
+        self.apply_move(self.side_to_move, Piece::Pawn, m.from, m.to);
     }
 
-    fn undo_ep_capture_move(&mut self, m: &EnPassantCaptureMove, move_side: Side) {
-        let (own_side, enemy_side) = match move_side {
-            Side::White => (&mut self.white_side, &mut self.black_side),
-            Side::Black => (&mut self.black_side, &mut self.white_side),
-        };
-        own_side.undo_move(Piece::Pawn, m.from, m.to);
-        enemy_side.undo_capture(Piece::Pawn, m.captured_pawn);
+    fn undo_ep_capture_move(&mut self, m: &EnPassantCaptureMove) {
+        self.undo_move(self.side_to_not_move, Piece::Pawn, m.from, m.to);
+        self.undo_capture(self.side_to_move, Piece::Pawn, m.captured_pawn);
     }
 
     fn apply_promotion_move(&mut self, m: &PromotionMove) {
-        let (own_side, enemy_side) = match self.side_to_move {
-            Side::White => (&mut self.white_side, &mut self.black_side),
-            Side::Black => (&mut self.black_side, &mut self.white_side),
-        };
-        own_side.apply_promotion(m.from, m.to, m.promotion_piece);
         if let Some(captured_piece) = m.captured_piece {
-            enemy_side.apply_capture(captured_piece, m.to);
+            self.apply_capture(self.side_to_not_move, captured_piece, m.to);
+        }
+        self.apply_promotion(self.side_to_move, m.from, m.to, m.promotion_piece);
+    }
+
+    fn undo_promotion_move(&mut self, m: &PromotionMove) {
+        self.undo_promotion(self.side_to_not_move, m.from, m.to, m.promotion_piece);
+        if let Some(captured_piece) = m.captured_piece {
+            self.undo_capture(self.side_to_move, captured_piece, m.to);
         }
     }
 
-    fn undo_promotion_move(&mut self, m: &PromotionMove, move_side: Side) {
-        let (own_side, enemy_side) = match move_side {
-            Side::White => (&mut self.white_side, &mut self.black_side),
-            Side::Black => (&mut self.black_side, &mut self.white_side),
-        };
-        own_side.undo_promotion(m.from, m.to, m.promotion_piece);
-        if let Some(captured_piece) = m.captured_piece {
-            enemy_side.undo_capture(captured_piece, m.to);
-        }
+    fn can_castle_short(&self, side: Side) -> bool {
+        let flag = Board::short_castling_flag(side);
+        self.castling_rights & flag == flag
+    }
+
+    fn can_castle_long(&self, side: Side) -> bool {
+        let flag = Board::long_castling_flag(side);
+        self.castling_rights & flag == flag
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
         let mut moves: Vec<Move> = vec![];
 
-        let own_side = self.own_side();
-        let enemy_side = self.enemy_side();
-        let own_pieces = own_side.all_pieces();
-        let enemy_pieces = enemy_side.all_pieces();
+        let (own_pieces, enemy_pieces) = match self.side_to_move {
+            Side::White => (self.white_pieces, self.black_pieces),
+            Side::Black => (self.black_pieces, self.white_pieces)
+        };
         let all_pieces = own_pieces | enemy_pieces;
 
-        let attacked_squares = self.attacked_squares();
-        let checks = self.checks(all_pieces);
-        let diagonal_pins = self.diagonal_pins();
-        let orthogonal_pins = self.orthogonal_pins();
+        let attacked_squares = self.attacked_squares(own_pieces, enemy_pieces, all_pieces);
+        let checks = self.checks(own_pieces, enemy_pieces, all_pieces);
+        let diagonal_pins = self.diagonal_pins(own_pieces, enemy_pieces);
+        let orthogonal_pins = self.orthogonal_pins(own_pieces, enemy_pieces);
         let pins = diagonal_pins | orthogonal_pins;
 
-        let own_king = own_side.king.single();
+        let own_king = (self.kings & own_pieces).single();
         let in_check = checks.checking_pieces.any();
 
         let king_moves = own_king.king_moves() & !(own_pieces | attacked_squares);
@@ -624,7 +564,7 @@ impl Board {
                 piece: Piece::King,
                 from: own_king,
                 to: square,
-                captured_piece: enemy_side.get_piece(square),
+                captured_piece: self.get_piece(self.side_to_not_move, square),
             }));
         }
         if checks.checking_pieces.count() > 1 {
@@ -634,19 +574,19 @@ impl Board {
 
         if !in_check {
             // castling
-            let danger_squares = own_pieces | enemy_pieces | attacked_squares;
-            if own_side.can_castle_short() {
+            let danger_squares = all_pieces | attacked_squares;
+            if self.can_castle_short(self.side_to_move) {
                 let king_to_square = own_king.delta(0, 2).unwrap();
-                let castling_path = own_king.bounding_box(king_to_square) & !own_side.king;
+                let castling_path = own_king.bounding_box(king_to_square) & !own_king;
                 if !(castling_path & danger_squares).any() {
                     moves.push(ShortCastling(self.side_to_move))
                 }
             }
 
-            if own_side.can_castle_long() {
+            if self.can_castle_long(self.side_to_move) {
                 let king_to_square = own_king.delta(0, -2).unwrap();
                 let extra_square = own_king.delta(0, -3).unwrap();
-                let castling_path = own_king.bounding_box(king_to_square) & !own_side.king;
+                let castling_path = own_king.bounding_box(king_to_square) & !own_king;
                 if !(castling_path & danger_squares).any() && !all_pieces.is_occupied(extra_square)
                 {
                     moves.push(LongCastling(self.side_to_move))
@@ -660,7 +600,7 @@ impl Board {
             BitBoard::full()
         };
 
-        for own_bishop_or_queen in own_side.bishops | own_side.queens {
+        for own_bishop_or_queen in own_pieces & (self.bishops | self.queens) {
             let mut allowed_moves = self.bishop_moves(own_bishop_or_queen, all_pieces)
                 & !own_pieces
                 & check_evasion_mask;
@@ -670,7 +610,7 @@ impl Board {
                 allowed_moves &= (orthogonal_pins) & own_bishop_or_queen.rook_moves();
             }
 
-            let piece = if own_side.bishops.is_occupied(own_bishop_or_queen) {
+            let piece = if self.bishops.is_occupied(own_bishop_or_queen) {
                 Piece::Bishop
             } else {
                 Piece::Queen
@@ -680,12 +620,12 @@ impl Board {
                     piece,
                     from: own_bishop_or_queen,
                     to: square,
-                    captured_piece: enemy_side.get_piece(square),
+                    captured_piece: self.get_piece(self.side_to_not_move, square),
                 }));
             }
         }
 
-        for own_rook_or_queen in own_side.rooks | own_side.queens {
+        for own_rook_or_queen in own_pieces & (self.rooks | self.queens) {
             let mut allowed_moves =
                 self.rook_moves(own_rook_or_queen, all_pieces) & !own_pieces & check_evasion_mask;
             if diagonal_pins.is_occupied(own_rook_or_queen) {
@@ -694,7 +634,7 @@ impl Board {
                 allowed_moves &= orthogonal_pins;
             }
 
-            let piece = if own_side.rooks.is_occupied(own_rook_or_queen) {
+            let piece = if self.rooks.is_occupied(own_rook_or_queen) {
                 Piece::Rook
             } else {
                 Piece::Queen
@@ -704,12 +644,12 @@ impl Board {
                     piece,
                     from: own_rook_or_queen,
                     to: square,
-                    captured_piece: enemy_side.get_piece(square),
+                    captured_piece: self.get_piece(self.side_to_not_move, square),
                 }));
             }
         }
 
-        for own_knight in own_side.knights {
+        for own_knight in own_pieces & self.knights {
             if pins.is_occupied(own_knight) {
                 // a pinned knight cannot move at all
                 continue;
@@ -721,25 +661,27 @@ impl Board {
                     piece: Piece::Knight,
                     from: own_knight,
                     to: square,
-                    captured_piece: enemy_side.get_piece(square),
+                    captured_piece: self.get_piece(self.side_to_not_move, square),
                 }));
             }
         }
 
-        let diagonally_pinned_pawns = own_side.pawns & diagonal_pins;
+        let own_pawns = own_pieces & self.pawns;
+
+        let diagonally_pinned_pawns = own_pawns & diagonal_pins;
         for own_pawn in diagonally_pinned_pawns {
             let capture_mask =
-                BitBoard::empty().set(own_pawn).pawn_captures(own_side.side) & enemy_pieces;
+                own_pawn.bb().pawn_captures(self.side_to_move) & enemy_pieces;
             let legal_captures = capture_mask & diagonal_pins & check_evasion_mask;
             for capture in legal_captures {
                 // possible for diagonally pinned pawn to promote
-                if capture.rank() % 7 == 0 {
+                if capture.rank() == Board::back_rank(self.side_to_not_move) {
                     for promotion_piece in [Piece::Queen, Piece::Rook, Piece::Knight, Piece::Bishop]
                     {
                         moves.push(Promotion(PromotionMove {
                             from: own_pawn,
                             to: capture,
-                            captured_piece: enemy_side.get_piece(capture),
+                            captured_piece: self.get_piece(self.side_to_not_move, capture),
                             promotion_piece,
                         }));
                     }
@@ -748,16 +690,16 @@ impl Board {
                         piece: Piece::Pawn,
                         from: own_pawn,
                         to: capture,
-                        captured_piece: enemy_side.get_piece(capture),
+                        captured_piece: self.get_piece(self.side_to_not_move, capture),
                     }));
                 }
             }
         }
 
-        let orthogonally_pinned_pawns = own_side.pawns & orthogonal_pins;
+        let orthogonally_pinned_pawns = own_pawns & orthogonal_pins;
         for own_pawn in orthogonally_pinned_pawns {
             let push_mask =
-                BitBoard::empty().set(own_pawn).pawn_pushes(own_side.side) & !all_pieces;
+                own_pawn.bb().pawn_pushes(self.side_to_move) & !all_pieces;
             let legal_pushes = push_mask & orthogonal_pins & check_evasion_mask;
             for push in legal_pushes {
                 // impossible for orthogonally pinned pawn to promote
@@ -768,9 +710,9 @@ impl Board {
                     captured_piece: None,
                 }));
             }
-            let double_push_rank = BitBoard::rank(if own_side.side == Side::White { 3 } else { 4 });
+            let double_push_rank = BitBoard::rank(Board::pawn_double_push_rank(self.side_to_move));
             let double_push_mask =
-                push_mask.pawn_pushes(own_side.side) & double_push_rank & !all_pieces;
+                push_mask.pawn_pushes(self.side_to_move) & double_push_rank & !all_pieces;
             let legal_double_pushes = double_push_mask & orthogonal_pins & check_evasion_mask;
             for double_push in legal_double_pushes {
                 moves.push(Regular(RegularMove {
@@ -782,11 +724,11 @@ impl Board {
             }
         }
 
-        let unpinned_pawns = own_side.pawns & !pins;
+        let unpinned_pawns = own_pawns & !pins;
 
         let pawn_pushes =
-            unpinned_pawns.pawn_pushes(own_side.side) & !all_pieces & check_evasion_mask;
-        let pawn_pushees = pawn_pushes.pawn_pushes(enemy_side.side);
+            unpinned_pawns.pawn_pushes(self.side_to_move) & !all_pieces & check_evasion_mask;
+        let pawn_pushees = pawn_pushes.pawn_pushes(self.side_to_not_move);
         for (from, to) in pawn_pushees.zip(pawn_pushes) {
             if to.rank() % 7 == 0 {
                 for promotion_piece in [Piece::Queen, Piece::Rook, Piece::Knight, Piece::Bishop] {
@@ -807,16 +749,15 @@ impl Board {
             }
         }
 
-        let pawn_double_push_rank =
-            BitBoard::rank(if own_side.side == Side::White { 3 } else { 4 });
-        let pawn_double_pushes = (unpinned_pawns.pawn_pushes(own_side.side) & !all_pieces)
-            .pawn_pushes(own_side.side)
+        let pawn_double_push_rank = BitBoard::rank(Board::pawn_double_push_rank(self.side_to_move));
+        let pawn_double_pushes = (unpinned_pawns.pawn_pushes(self.side_to_move) & !all_pieces)
+            .pawn_pushes(self.side_to_move)
             & pawn_double_push_rank
             & !all_pieces
             & check_evasion_mask;
         let pawn_double_pushees = pawn_double_pushes
-            .pawn_pushes(enemy_side.side)
-            .pawn_pushes(enemy_side.side);
+            .pawn_pushes(self.side_to_not_move)
+            .pawn_pushes(self.side_to_not_move);
         for (from, to) in pawn_double_pushees.zip(pawn_double_pushes) {
             moves.push(Regular(RegularMove {
                 piece: Piece::Pawn,
@@ -827,19 +768,19 @@ impl Board {
         }
 
         let pawn_left_captures_excl_ep =
-            unpinned_pawns.pawn_left_captures(own_side.side) & enemy_pieces & check_evasion_mask;
-        let pawn_left_capturers = pawn_left_captures_excl_ep.pawn_left_captures(enemy_side.side);
+            unpinned_pawns.pawn_left_captures(self.side_to_move) & enemy_pieces & check_evasion_mask;
+        let pawn_left_capturers = pawn_left_captures_excl_ep.pawn_left_captures(self.side_to_not_move);
         let pawn_right_captures_excl_ep =
-            unpinned_pawns.pawn_right_captures(own_side.side) & enemy_pieces & check_evasion_mask;
-        let pawn_right_capturers = pawn_right_captures_excl_ep.pawn_right_captures(enemy_side.side);
+            unpinned_pawns.pawn_right_captures(self.side_to_move) & enemy_pieces & check_evasion_mask;
+        let pawn_right_capturers = pawn_right_captures_excl_ep.pawn_right_captures(self.side_to_not_move);
 
         let pawn_captures = pawn_left_capturers
             .zip(pawn_left_captures_excl_ep)
             .chain(pawn_right_capturers.zip(pawn_right_captures_excl_ep));
 
         for (from, to) in pawn_captures {
-            let captured_piece = enemy_side.get_piece(to);
-            if to.rank() % 7 == 0 {
+            let captured_piece = self.get_piece(self.side_to_not_move, to);
+            if to.rank() == Board::back_rank(self.side_to_not_move) {
                 for promotion_piece in [Piece::Queen, Piece::Rook, Piece::Knight, Piece::Bishop] {
                     moves.push(Promotion(PromotionMove {
                         from,
@@ -858,14 +799,13 @@ impl Board {
             }
         }
 
-        if let Some(ep) = self.ep_square {
-            let ep_bb = BitBoard::empty().set(ep);
-            let enemy_pawn = ep_bb.pawn_pushes(enemy_side.side);
-            let potential_capturers = if diagonal_pins.is_occupied(ep) {
+        if let Some(ep_square) = self.ep_square {
+            let enemy_pawn = ep_square.bb().pawn_pushes(self.side_to_not_move);
+            let potential_capturers = if diagonal_pins.is_occupied(ep_square) {
                 unpinned_pawns | diagonally_pinned_pawns
             } else {
                 unpinned_pawns
-            } & ep_bb.pawn_captures(enemy_side.side);
+            } & ep_square.bb().pawn_captures(self.side_to_not_move);
             let own_king_rank = BitBoard::rank(own_king.rank());
             let capturers_on_own_king_rank = potential_capturers & own_king_rank;
             let mut can_capture_ep = true;
@@ -873,7 +813,7 @@ impl Board {
                 can_capture_ep = false;
             } else if capturers_on_own_king_rank.count() == 1 {
                 // weird edge case; "partially" pinned pawn (ep capture reveals rook/queen check on same rank)
-                let partial_pinners = (enemy_side.rooks | enemy_side.queens) & own_king_rank;
+                let partial_pinners = (self.rooks | self.queens) & enemy_pieces & own_king_rank;
                 for partial_pinner in partial_pinners {
                     let bounding_box = partial_pinner.bounding_box(own_king) & all_pieces;
                     if bounding_box.count() < 5 {
@@ -886,7 +826,7 @@ impl Board {
                 for own_pawn in potential_capturers {
                     moves.push(EnPassantCapture(EnPassantCaptureMove {
                         from: own_pawn,
-                        to: ep,
+                        to: ep_square,
                         captured_pawn: enemy_pawn.single(),
                     }));
                 }
@@ -894,20 +834,6 @@ impl Board {
         }
 
         moves
-    }
-
-    fn own_side(&self) -> &BoardSide {
-        match self.side_to_move {
-            Side::White => &self.white_side,
-            Side::Black => &self.black_side,
-        }
-    }
-
-    fn enemy_side(&self) -> &BoardSide {
-        match self.side_to_move {
-            Side::White => &self.black_side,
-            Side::Black => &self.white_side,
-        }
     }
 
     fn bishop_moves(&self, square: Square, all_pieces: BitBoard) -> BitBoard {
@@ -931,38 +857,38 @@ impl Board {
         }
     }
 
-    fn attacked_squares(&self) -> BitBoard {
-        let own_side = self.own_side();
-        let enemy_side = self.enemy_side();
-        let mut attacked_squares = enemy_side.pawns.pawn_captures(enemy_side.side);
-        for king in enemy_side.king {
+    fn attacked_squares(&self, own_pieces: BitBoard, enemy_pieces: BitBoard, all_pieces: BitBoard) -> BitBoard {
+        let mut attacked_squares = (self.pawns & enemy_pieces).pawn_captures(self.side_to_not_move);
+        for king in self.kings & enemy_pieces {
             attacked_squares |= king.king_moves();
         }
-        for knight in enemy_side.knights {
+        for knight in self.knights & enemy_pieces {
             attacked_squares |= knight.knight_moves();
         }
         // enemy ray pieces see "through" our king
-        let all_pieces_except_own_king =
-            (own_side.all_pieces() | enemy_side.all_pieces()) & !own_side.king;
-        for bishop_or_queen in enemy_side.bishops | enemy_side.queens {
+        let all_pieces_except_own_king = all_pieces & !(self.kings & own_pieces);
+        for bishop_or_queen in (self.bishops | self.queens) & enemy_pieces {
             attacked_squares |= self.bishop_moves(bishop_or_queen, all_pieces_except_own_king);
         }
-        for rook_or_queen in enemy_side.rooks | enemy_side.queens {
+        for rook_or_queen in (self.rooks | self.queens) & enemy_pieces {
             attacked_squares |= self.rook_moves(rook_or_queen, all_pieces_except_own_king);
         }
         attacked_squares
     }
 
-    fn checks(&self, all_pieces: BitBoard) -> Checks {
-        let own_side = self.own_side();
-        let enemy_side = self.enemy_side();
-        let own_king = own_side.king.single();
-        let checking_pawns = enemy_side.pawns & own_side.king.pawn_captures(own_side.side);
-        let checking_knights = enemy_side.knights & own_king.knight_moves();
+    fn checks(&self, own_pieces: BitBoard, enemy_pieces: BitBoard, all_pieces: BitBoard) -> Checks {
+        let own_king = (self.kings & own_pieces).single();
+        let enemy_pawns = self.pawns & enemy_pieces;
+        let enemy_knights = self.knights & enemy_pieces;
+        let enemy_bishops = self.bishops & enemy_pieces;
+        let enemy_rooks = self.rooks & enemy_pieces;
+        let enemy_queens = self.queens & enemy_pieces;
+        let checking_pawns = enemy_pawns & own_king.bb().pawn_captures(self.side_to_move);
+        let checking_knights = enemy_knights & own_king.knight_moves();
         let checking_diag_sliders =
-            (enemy_side.bishops | enemy_side.queens) & self.bishop_moves(own_king, all_pieces);
+            (enemy_bishops | enemy_queens) & self.bishop_moves(own_king, all_pieces);
         let checking_orthog_sliders =
-            (enemy_side.rooks | enemy_side.queens) & self.rook_moves(own_king, all_pieces);
+            (enemy_rooks | enemy_queens) & self.rook_moves(own_king, all_pieces);
         let checking_sliders = checking_diag_sliders | checking_orthog_sliders;
         let checking_pieces = checking_pawns | checking_knights | checking_sliders;
         let mut check_blocking_squares = BitBoard::empty();
@@ -978,17 +904,15 @@ impl Board {
         }
     }
 
-    fn diagonal_pins(&self) -> BitBoard {
-        let own_side = self.own_side();
-        let enemy_side = self.enemy_side();
-        let own_king = own_side.king.single();
+    fn diagonal_pins(&self, own_pieces: BitBoard, enemy_pieces: BitBoard) -> BitBoard {
+        let own_king = (self.kings & own_pieces).single();
         let mask = own_king.bishop_moves();
-        let pinners = (enemy_side.bishops | enemy_side.queens) & mask;
+        let pinners = (self.bishops | self.queens) & enemy_pieces & mask;
         let mut pin_mask = BitBoard::empty();
         for pinner in pinners {
-            let pin_path = mask & pinner.bounding_box(own_king) & !own_side.king;
-            let own_pieces_on_path = own_side.all_pieces() & pin_path;
-            let enemy_pieces_on_path = enemy_side.all_pieces() & pin_path;
+            let pin_path = mask & pinner.bounding_box(own_king) & !own_king;
+            let own_pieces_on_path = own_pieces & pin_path;
+            let enemy_pieces_on_path = enemy_pieces & pin_path;
             if own_pieces_on_path.count() == 1 && enemy_pieces_on_path.count() == 1 {
                 pin_mask |= pin_path;
             }
@@ -996,17 +920,15 @@ impl Board {
         pin_mask
     }
 
-    fn orthogonal_pins(&self) -> BitBoard {
-        let own_side = self.own_side();
-        let enemy_side = self.enemy_side();
-        let own_king = own_side.king.single();
+    fn orthogonal_pins(&self, own_pieces: BitBoard, enemy_pieces: BitBoard) -> BitBoard {
+        let own_king = (self.kings & own_pieces).single();
         let mask = own_king.rook_moves();
-        let pinners = (enemy_side.rooks | enemy_side.queens) & mask;
+        let pinners = (self.rooks | self.queens) & enemy_pieces & mask;
         let mut pin_mask = BitBoard::empty();
         for pinner in pinners {
-            let pin_path = mask & pinner.bounding_box(own_king) & !own_side.king;
-            let own_pieces_on_path = own_side.all_pieces() & pin_path;
-            let enemy_pieces_on_path = enemy_side.all_pieces() & pin_path;
+            let pin_path = mask & pinner.bounding_box(own_king) & !own_king;
+            let own_pieces_on_path = own_pieces & pin_path;
+            let enemy_pieces_on_path = enemy_pieces & pin_path;
             if own_pieces_on_path.count() == 1 && enemy_pieces_on_path.count() == 1 {
                 pin_mask |= pin_path;
             }
@@ -1030,6 +952,13 @@ mod tests {
         "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
     const POSITION_7: &str = "rn1qk1nr/pbppp1bp/1p4p1/4Pp2/3K4/8/PPPP1PPP/RNBQ1BNR w kq f6 0 1";
     const POSITION_8: &str = "rnb1k1nr/pppp1ppp/8/4p3/1b1P3q/2Q5/PPP1PPPP/RNB1KBNR w KQkq - 0 4";
+
+    #[test]
+    fn test_legal_moves_starting_position() {
+        let board = Board::starting_position();
+        let legal_moves = board.legal_moves();
+        assert_eq!(legal_moves.len(), 20);
+    }
 
     #[test]
     fn test_parse_fen_starting_position() {
