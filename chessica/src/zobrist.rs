@@ -5,6 +5,7 @@ use rand::Rng;
 use crate::{Piece, Side};
 use crate::square::Square;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct ZobristHashKeys {
     pub black_to_move_key: u64,
     pub piece_keys: EnumMap<Side, EnumMap<Piece, Vec<u64>>>,
@@ -46,8 +47,9 @@ impl ZobristHashKeys {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ZobristHash {
-    value: u64,
+    pub value: u64,
     keys: &'static ZobristHashKeys
 }
 
@@ -62,17 +64,12 @@ impl ZobristHash {
         }
     }
 
-    pub fn set_from(&mut self, other: &ZobristHash) {
-        self.value = other.value;
+    pub fn flip_black_to_move(&mut self) {
+        self.value ^= self.keys.black_to_move_key;
     }
 
     pub fn flip_piece(&mut self, side: Side, piece: Piece, square: Square) {
         self.value ^= self.keys.piece_keys[side][piece][square.ordinal as usize];
-    }
-
-    pub fn move_piece(&mut self, side: Side, piece: Piece, from: Square, to: Square) {
-        self.value ^= self.keys.piece_keys[side][piece][from.ordinal as usize];
-        self.value ^= self.keys.piece_keys[side][piece][to.ordinal as usize];
     }
 
     pub fn flip_ep_file(&mut self, file: u8) {

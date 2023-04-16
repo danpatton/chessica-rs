@@ -9,6 +9,7 @@ use crate::bitboard_magic::{
 use crate::square::Square;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
+use crate::zobrist::ZobristHash;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct MoveUndoInfo {
@@ -49,6 +50,7 @@ pub struct Board {
     half_move_clock: u8,
     full_move_number: u16,
     ep_square: Option<Square>,
+    z_hash: ZobristHash,
     move_stack: Vec<(Move, MoveUndoInfo)>,
 }
 
@@ -88,7 +90,7 @@ impl Board {
     }
 
     pub fn starting_position() -> Self {
-        Board {
+        let mut board = Board {
             side_to_move: Side::White,
             side_to_not_move: Side::Black,
             white_pieces: BitBoard::rank(0) | BitBoard::rank(1),
@@ -103,8 +105,11 @@ impl Board {
             half_move_clock: 0,
             full_move_number: 1,
             ep_square: None,
+            z_hash: ZobristHash::new(),
             move_stack: vec![],
-        }
+        };
+        board.init_zobrist_hash();
+        board
     }
 
     pub fn parse_fen(fen: &str) -> Result<Self, FenParseError> {
@@ -165,8 +170,10 @@ impl Board {
                 half_move_clock,
                 full_move_number,
                 ep_square,
+                z_hash: ZobristHash::new(),
                 move_stack: vec![],
             };
+            board.init_zobrist_hash();
 
             for (i, row) in rows.iter().enumerate() {
                 let rank = i as u8;
@@ -192,6 +199,67 @@ impl Board {
             return Ok(board);
         }
         Err(FenParseError)
+    }
+
+    fn init_zobrist_hash(&mut self) {
+        for square in self.pawns & self.white_pieces {
+            self.z_hash.flip_piece(Side::White, Piece::Pawn, square);
+        }
+        for square in self.bishops & self.white_pieces {
+            self.z_hash.flip_piece(Side::White, Piece::Bishop, square);
+        }
+        for square in self.knights & self.white_pieces {
+            self.z_hash.flip_piece(Side::White, Piece::Knight, square);
+        }
+        for square in self.rooks & self.white_pieces {
+            self.z_hash.flip_piece(Side::White, Piece::Rook, square);
+        }
+        for square in self.queens & self.white_pieces {
+            self.z_hash.flip_piece(Side::White, Piece::Queen, square);
+        }
+        for square in self.kings & self.white_pieces {
+            self.z_hash.flip_piece(Side::White, Piece::King, square);
+        }
+        for square in self.pawns & self.black_pieces {
+            self.z_hash.flip_piece(Side::Black, Piece::Pawn, square);
+        }
+        for square in self.bishops & self.black_pieces {
+            self.z_hash.flip_piece(Side::Black, Piece::Bishop, square);
+        }
+        for square in self.knights & self.black_pieces {
+            self.z_hash.flip_piece(Side::Black, Piece::Knight, square);
+        }
+        for square in self.rooks & self.black_pieces {
+            self.z_hash.flip_piece(Side::Black, Piece::Rook, square);
+        }
+        for square in self.queens & self.black_pieces {
+            self.z_hash.flip_piece(Side::Black, Piece::Queen, square);
+        }
+        for square in self.kings & self.black_pieces {
+            self.z_hash.flip_piece(Side::Black, Piece::King, square);
+        }
+        if self.can_castle_short(Side::White) {
+            self.z_hash.flip_short_castling(Side::White);
+        }
+        if self.can_castle_long(Side::White) {
+            self.z_hash.flip_long_castling(Side::White);
+        }
+        if self.can_castle_short(Side::Black) {
+            self.z_hash.flip_short_castling(Side::Black);
+        }
+        if self.can_castle_long(Side::Black) {
+            self.z_hash.flip_long_castling(Side::Black);
+        }
+        if let Some(ep_square) = self.ep_square {
+            self.z_hash.flip_ep_file(ep_square.file());
+        }
+        if self.side_to_move == Side::Black {
+            self.z_hash.flip_black_to_move();
+        }
+    }
+
+    pub fn hash(&self) -> u64 {
+        self.z_hash.value
     }
 
     pub fn to_fen_string(&self) -> String {
@@ -300,7 +368,8 @@ impl Board {
             Piece::Rook => self.rooks |= square,
             Piece::Queen => self.queens |= square,
             Piece::King => self.kings |= square,
-        }
+        };
+        self.z_hash.flip_piece(side, piece, square);
     }
 
     fn remove_piece(&mut self, side: Side, piece: Piece, square: Square) {
@@ -315,7 +384,8 @@ impl Board {
             Piece::Rook => self.rooks &= !square,
             Piece::Queen => self.queens &= !square,
             Piece::King => self.kings &= !square,
-        }
+        };
+        self.z_hash.flip_piece(side, piece, square);
     }
 
     fn apply_move(&mut self, side: Side, piece: Piece, from: Square, to: Square) {
@@ -323,23 +393,40 @@ impl Board {
         self.add_piece(side, piece, to);
         match piece {
             Piece::King => {
-                self.castling_rights &= !(Board::long_castling_flag(side) | Board::short_castling_flag(side));
+                let flag = Board::long_castling_flag(side);
+                if self.castling_rights & flag != 0 {
+                    self.castling_rights &= !flag;
+                    self.z_hash.flip_long_castling(side);
+                }
+                let flag = Board::short_castling_flag(side);
+                if self.castling_rights & flag != 0 {
+                    self.castling_rights &= !flag;
+                    self.z_hash.flip_short_castling(side);
+                }
             }
             Piece::Rook => {
                 if from.rank() == Board::back_rank(side) {
                     match from.file() {
                         0 => {
-                            self.castling_rights &= !Board::long_castling_flag(side);
+                            let flag = Board::long_castling_flag(side);
+                            if self.castling_rights & flag != 0 {
+                                self.castling_rights &= !flag;
+                                self.z_hash.flip_long_castling(side);
+                            }
                         }
                         7 => {
-                            self.castling_rights &= !Board::short_castling_flag(side);
+                            let flag = Board::short_castling_flag(side);
+                            if self.castling_rights & flag != 0 {
+                                self.castling_rights &= !flag;
+                                self.z_hash.flip_short_castling(side);
+                            }
                         }
                         _ => {}
                     };
                 }
             }
             _ => {}
-        }
+        };
     }
 
     fn undo_move(&mut self, side: Side, piece: Piece, from: Square, to: Square) {
@@ -353,10 +440,18 @@ impl Board {
             if square.rank() == Board::back_rank(side) {
                 match square.file() {
                     0 => {
-                        self.castling_rights &= !Board::long_castling_flag(side);
+                        let flag = Board::long_castling_flag(side);
+                        if self.castling_rights & flag == flag {
+                            self.castling_rights &= !flag;
+                            self.z_hash.flip_long_castling(side);
+                        }
                     }
                     7 => {
-                        self.castling_rights &= !Board::short_castling_flag(side);
+                        let flag = Board::short_castling_flag(side);
+                        if self.castling_rights & flag == flag {
+                            self.castling_rights &= !flag;
+                            self.z_hash.flip_short_castling(side);
+                        }
                     }
                     _ => {}
                 };
@@ -393,6 +488,9 @@ impl Board {
             self.half_move_clock,
             self.ep_square,
         );
+        if let Some(ep_square) = self.ep_square {
+            self.z_hash.flip_ep_file(ep_square.file());
+        }
         self.ep_square = None;
         match move_ {
             Regular(m) => {
@@ -422,6 +520,7 @@ impl Board {
         };
         self.move_stack.push((move_.clone(), move_undo_info));
         std::mem::swap(&mut self.side_to_move, &mut self.side_to_not_move);
+        self.z_hash.flip_black_to_move();
         if self.side_to_move == Side::White {
             self.full_move_number += 1;
         }
@@ -436,10 +535,32 @@ impl Board {
                 EnPassantCapture(m) => self.undo_ep_capture_move(&m),
                 Promotion(m) => self.undo_promotion_move(&m),
             };
-            self.castling_rights = move_undo_info.castling_rights;
+            let castling_rights_diff = self.castling_rights ^ move_undo_info.castling_rights;
+            if castling_rights_diff != 0 {
+                if castling_rights_diff & Board::short_castling_flag(Side::White) != 0 {
+                    self.z_hash.flip_short_castling(Side::White);
+                }
+                if castling_rights_diff & Board::long_castling_flag(Side::White) != 0 {
+                    self.z_hash.flip_long_castling(Side::White);
+                }
+                if castling_rights_diff & Board::short_castling_flag(Side::Black) != 0 {
+                    self.z_hash.flip_short_castling(Side::Black);
+                }
+                if castling_rights_diff & Board::long_castling_flag(Side::Black) != 0 {
+                    self.z_hash.flip_long_castling(Side::Black);
+                }
+                self.castling_rights = move_undo_info.castling_rights;
+            }
+            if let Some(ep_square) = self.ep_square {
+                self.z_hash.flip_ep_file(ep_square.file());
+            }
             self.ep_square = move_undo_info.ep_square;
+            if let Some(ep_square) = self.ep_square {
+                self.z_hash.flip_ep_file(ep_square.file());
+            }
             self.half_move_clock = move_undo_info.half_move_clock;
             std::mem::swap(&mut self.side_to_move, &mut self.side_to_not_move);
+            self.z_hash.flip_black_to_move();
             if self.side_to_move == Side::Black {
                 self.full_move_number -= 1;
             }
@@ -453,10 +574,12 @@ impl Board {
             if self.side_to_move == Side::White {
                 if m.from.rank() == 1 && m.to.rank() == 3 {
                     self.ep_square = m.from.delta(1, 0);
+                    self.z_hash.flip_ep_file(m.to.file());
                 }
             } else {
                 if m.from.rank() == 6 && m.to.rank() == 4 {
                     self.ep_square = m.from.delta(-1, 0);
+                    self.z_hash.flip_ep_file(m.to.file());
                 }
             }
         }
@@ -1035,5 +1158,24 @@ mod tests {
         let output_fen = board.to_fen_string();
         assert_eq!(output_fen, input_fen);
         assert_eq!(result, expected_result);
+    }
+
+    #[test_case(POSITION_1 ; "position 1")]
+    #[test_case(POSITION_2 ; "position 2")]
+    #[test_case(POSITION_3 ; "position 3")]
+    #[test_case(POSITION_4 ; "position 4")]
+    #[test_case(POSITION_5 ; "position 5")]
+    #[test_case(POSITION_6 ; "position 6")]
+    #[test_case(POSITION_7 ; "position 7")]
+    #[test_case(POSITION_8 ; "position 8")]
+    fn test_hash(input_fen: &str) {
+        let mut board = Board::parse_fen(input_fen).unwrap();
+        for move_ in board.legal_moves().iter() {
+            let hash_before = board.hash();
+            board.push(move_);
+            board.pop();
+            let hash_after = board.hash();
+            assert_eq!(hash_before, hash_after);
+        }
     }
 }
