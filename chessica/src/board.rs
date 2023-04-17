@@ -3,9 +3,7 @@ use regex::Regex;
 use string_builder::Builder;
 
 use crate::bitboard::BitBoard;
-use crate::bitboard_magic::{
-    find_bishop_magics, find_rook_magics, MagicBitBoardTable, MAGIC_INDEX_BITS,
-};
+use crate::bitboard_magic::{MagicBitBoardTable, build_magic_rook_tables, build_magic_bishop_tables};
 use crate::square::Square;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
@@ -961,8 +959,7 @@ impl Board {
 
     fn bishop_moves(&self, square: Square, all_pieces: BitBoard) -> BitBoard {
         lazy_static! {
-            static ref BISHOP_MAGICS: Vec<MagicBitBoardTable> =
-                find_bishop_magics(MAGIC_INDEX_BITS);
+            static ref BISHOP_MAGICS: Vec<MagicBitBoardTable> = build_magic_bishop_tables();
         }
         match BISHOP_MAGICS.get(square.ordinal as usize) {
             Some(magic_table) => magic_table.get_moves(all_pieces),
@@ -972,7 +969,7 @@ impl Board {
 
     fn rook_moves(&self, square: Square, all_pieces: BitBoard) -> BitBoard {
         lazy_static! {
-            static ref ROOK_MAGICS: Vec<MagicBitBoardTable> = find_rook_magics(MAGIC_INDEX_BITS);
+            static ref ROOK_MAGICS: Vec<MagicBitBoardTable> = build_magic_rook_tables();
         }
         match ROOK_MAGICS.get(square.ordinal as usize) {
             Some(magic_table) => magic_table.get_moves(all_pieces),

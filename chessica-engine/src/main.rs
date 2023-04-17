@@ -5,6 +5,7 @@ use std::process::exit;
 use chessica::board::Board;
 use chessica::perft::{perft, perft_h, PerftHashEntry};
 use std::time::Instant;
+use chessica::bitboard_magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -12,6 +13,18 @@ fn main() {
     match args.get(1) {
         Some(command) => {
             match command.as_str() {
+                "bmagics" => {
+                    let start = Instant::now();
+                    let bishop_magics = find_fancy_bishop_magics(5, 1_000_000);
+                    let duration = start.elapsed();
+                    println!("Found {} bishop magics ({:.3} sec)", bishop_magics.len(), duration.as_secs_f32());
+                },
+                "rmagics" => {
+                    let start = Instant::now();
+                    let rook_magics = find_fancy_rook_magics(10, 1_000_000);
+                    let duration = start.elapsed();
+                    println!("Found {} rook magics ({:.3} sec)", rook_magics.len(), duration.as_secs_f32());
+                },
                 "perft" => {
                     if args.len() < 4 || args.len() > 5 {
                         println!("Usage: perft <max_depth> [-H<hash_bits>] <fen>");

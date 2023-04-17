@@ -6,9 +6,9 @@ use crate::square::Square;
 
 pub mod board;
 pub mod perft;
+pub mod bitboard_magic;
 
 mod bitboard;
-mod bitboard_magic;
 mod bitboard_masks;
 mod square;
 mod zobrist;
