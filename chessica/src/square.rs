@@ -1,5 +1,5 @@
 use crate::bitboard::BitBoard;
-use crate::bitboard_masks::{BISHOPS_MOVE, BOUNDING_BOX, KINGS_MOVE, KNIGHTS_MOVE, ROOKS_MOVE};
+use crate::masks::{BISHOPS_MOVE, BOUNDING_BOX, KINGS_MOVE, KNIGHTS_MOVE, ROOKS_MOVE};
 use std::fmt;
 use std::fmt::Formatter;
 use std::ops;

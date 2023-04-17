@@ -3,7 +3,7 @@ use regex::Regex;
 use string_builder::Builder;
 
 use crate::bitboard::BitBoard;
-use crate::bitboard_magic::{MagicBitBoardTable, build_magic_rook_tables, build_magic_bishop_tables};
+use crate::magic::{MagicBitBoardTable, build_magic_rook_tables, build_magic_bishop_tables};
 use crate::square::Square;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};

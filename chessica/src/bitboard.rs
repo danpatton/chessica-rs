@@ -1,4 +1,4 @@
-use crate::bitboard_masks::{FILE, RANK};
+use crate::masks::{FILE, RANK};
 use crate::square::Square;
 use std::fmt;
 use std::fmt::Formatter;

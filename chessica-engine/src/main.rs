@@ -5,7 +5,7 @@ use std::process::exit;
 use chessica::board::Board;
 use chessica::perft::{perft, perft_h, PerftHashEntry};
 use std::time::Instant;
-use chessica::bitboard_magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
+use chessica::magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
 
 fn main() {
     let args: Vec<String> = env::args().collect();

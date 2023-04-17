@@ -6,10 +6,10 @@ use crate::square::Square;
 
 pub mod board;
 pub mod perft;
-pub mod bitboard_magic;
+pub mod magic;
 
 mod bitboard;
-mod bitboard_masks;
+mod masks;
 mod square;
 mod zobrist;
 
