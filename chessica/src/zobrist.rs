@@ -1,9 +1,9 @@
+use crate::square::Square;
+use crate::{Piece, Side};
 use enum_map::{enum_map, EnumMap};
 use lazy_static::lazy_static;
 use rand::prelude::ThreadRng;
 use rand::Rng;
-use crate::{Piece, Side};
-use crate::square::Square;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ZobristHashKeys {
@@ -42,7 +42,7 @@ impl ZobristHashKeys {
                 Side::White => rng.gen::<u64>(),
                 Side::Black => rng.gen::<u64>(),
             },
-            en_passant_file_keys: (0..8).map(|_| rng.gen::<u64>()).collect()
+            en_passant_file_keys: (0..8).map(|_| rng.gen::<u64>()).collect(),
         }
     }
 }
@@ -50,7 +50,7 @@ impl ZobristHashKeys {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ZobristHash {
     pub value: u64,
-    keys: &'static ZobristHashKeys
+    keys: &'static ZobristHashKeys,
 }
 
 impl ZobristHash {
@@ -60,7 +60,7 @@ impl ZobristHash {
         }
         ZobristHash {
             value: 0,
-            keys: &KEYS
+            keys: &KEYS,
         }
     }
 

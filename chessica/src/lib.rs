@@ -1,12 +1,12 @@
 extern crate enum_map;
 extern crate tabled;
 
-use enum_map::Enum;
 use crate::square::Square;
+use enum_map::Enum;
 
 pub mod board;
-pub mod perft;
 pub mod magic;
+pub mod perft;
 
 mod bitboard;
 mod masks;
@@ -21,12 +21,26 @@ pub enum Side {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
 pub enum Piece {
-    Pawn,
+    Pawn = 1,
     Knight,
     Bishop,
     Rook,
     Queen,
     King,
+}
+
+impl From<u8> for Piece {
+    fn from(value: u8) -> Self {
+        match value {
+            1 => Piece::Pawn,
+            2 => Piece::Knight,
+            3 => Piece::Bishop,
+            4 => Piece::Rook,
+            5 => Piece::Queen,
+            6 => Piece::King,
+            _ => panic!(),
+        }
+    }
 }
 
 pub struct FenCharParseError;
@@ -68,25 +82,126 @@ impl Piece {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RegularMove {
-    pub piece: Piece,
-    pub from: Square,
-    pub to: Square,
-    pub captured_piece: Option<Piece>,
+    _from: Square,
+    _to: Square,
+    _pieces: u8,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct EnPassantCaptureMove {
-    pub from: Square,
-    pub to: Square,
-    pub captured_pawn: Square,
+    _from: Square,
+    _to: Square,
+    _captured_pawn: Square,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PromotionMove {
-    pub from: Square,
-    pub to: Square,
-    pub promotion_piece: Piece,
-    pub captured_piece: Option<Piece>,
+    _from: Square,
+    _to: Square,
+    _pieces: u8,
+}
+
+impl RegularMove {
+    pub fn new(piece: Piece, from: Square, to: Square, captured_piece: Option<Piece>) -> Self {
+        let pieces = piece as u8
+            | match captured_piece {
+                Some(cp) => (cp as u8) << 4,
+                None => 0,
+            };
+        RegularMove {
+            _from: from,
+            _to: to,
+            _pieces: pieces,
+        }
+    }
+
+    pub fn from(&self) -> Square {
+        self._from
+    }
+
+    pub fn to(&self) -> Square {
+        self._to
+    }
+
+    pub fn piece(&self) -> Piece {
+        (self._pieces & 0x0f).into()
+    }
+
+    pub fn captured_piece(&self) -> Option<Piece> {
+        match self._pieces & 0xf0 {
+            0 => None,
+            cp => Some((cp >> 4).into()),
+        }
+    }
+
+    pub fn is_capture(&self) -> bool {
+        self._pieces > 0x0f
+    }
+}
+
+impl EnPassantCaptureMove {
+    pub fn new(from: Square, to: Square, captured_pawn: Square) -> Self {
+        EnPassantCaptureMove {
+            _from: from,
+            _to: to,
+            _captured_pawn: captured_pawn,
+        }
+    }
+
+    pub fn from(&self) -> Square {
+        self._from
+    }
+
+    pub fn to(&self) -> Square {
+        self._to
+    }
+
+    pub fn captured_pawn(&self) -> Square {
+        self._captured_pawn
+    }
+}
+
+impl PromotionMove {
+    pub fn new(
+        from: Square,
+        to: Square,
+        promotion_piece: Piece,
+        captured_piece: Option<Piece>,
+    ) -> Self {
+        let pieces = promotion_piece as u8
+            | match captured_piece {
+                Some(cp) => (cp as u8) << 4,
+                None => 0,
+            };
+        PromotionMove {
+            _from: from,
+            _to: to,
+            _pieces: pieces,
+        }
+    }
+
+    pub fn from(&self) -> Square {
+        self._from
+    }
+
+    pub fn to(&self) -> Square {
+        self._to
+    }
+
+    pub fn promotion_piece(&self) -> Piece {
+        (self._pieces & 0x0f).into()
+    }
+
+    pub fn captured_piece(&self) -> Option<Piece> {
+        match self._pieces & 0xf0 {
+            0 => None,
+            cp => Some((cp >> 4).into()),
+        }
+    }
+
+    pub fn is_capture(&self) -> bool {
+        self._pieces > 0x0f
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -99,21 +214,51 @@ pub enum Move {
 }
 
 impl Move {
+    pub fn regular(piece: Piece, from: Square, to: Square, captured_piece: Option<Piece>) -> Self {
+        Move::Regular(RegularMove::new(piece, from, to, captured_piece))
+    }
+
+    pub fn short_castling(side: Side) -> Self {
+        Move::ShortCastling(side)
+    }
+
+    pub fn long_castling(side: Side) -> Self {
+        Move::LongCastling(side)
+    }
+
+    pub fn promotion(
+        from: Square,
+        to: Square,
+        promotion_piece: Piece,
+        captured_piece: Option<Piece>,
+    ) -> Self {
+        Move::Promotion(PromotionMove::new(
+            from,
+            to,
+            promotion_piece,
+            captured_piece,
+        ))
+    }
+
+    pub fn en_passant(from: Square, to: Square, captured_pawn: Square) -> Self {
+        Move::EnPassantCapture(EnPassantCaptureMove::new(from, to, captured_pawn))
+    }
+
     pub fn to_uci_string(&self) -> String {
         match self {
-            Move::Regular(m) => format!("{}{}", m.from, m.to),
+            Move::Regular(m) => format!("{}{}", m.from(), m.to()),
             Move::ShortCastling(side) => {
                 String::from(if *side == Side::White { "e1g1" } else { "e8g8" })
             }
             Move::LongCastling(side) => {
                 String::from(if *side == Side::White { "e1c1" } else { "e8c8" })
             }
-            Move::EnPassantCapture(ep) => format!("{}{}", ep.from, ep.to),
+            Move::EnPassantCapture(ep) => format!("{}{}", ep.from(), ep.to()),
             Move::Promotion(m) => format!(
                 "{}{}{}",
-                m.from,
-                m.to,
-                m.promotion_piece.to_fen_char(Side::Black)
+                m.from(),
+                m.to(),
+                m.promotion_piece().to_fen_char(Side::Black)
             ),
         }
     }

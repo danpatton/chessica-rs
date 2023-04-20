@@ -20,7 +20,7 @@ pub fn perft(board: &mut Board, depth: u8) -> u64 {
                     board.pop();
                 }
                 count
-            },
+            }
         }
     }
     let mut vecs: Vec<Vec<Move>> = vec![];
@@ -37,7 +37,14 @@ pub fn perft_h(board: &mut Board, depth: u8, hash_table: &mut Vec<PerftHashEntry
     let depth_shift = (hash_table.len().trailing_zeros() - 3) as u8;
     let hash_mask = (1u64 << depth_shift) - 1;
 
-    fn _impl(board: &mut Board, vecs: &mut [Vec<Move>], depth: u64, depth_shift: u8, hash_mask: u64, hash_table: &mut Vec<PerftHashEntry>) -> u64 {
+    fn _impl(
+        board: &mut Board,
+        vecs: &mut [Vec<Move>],
+        depth: u64,
+        depth_shift: u8,
+        hash_mask: u64,
+        hash_table: &mut Vec<PerftHashEntry>,
+    ) -> u64 {
         let hash = board.hash();
         let idx = ((depth << depth_shift) | (hash & hash_mask)) as usize;
         let entry = &hash_table[idx];
@@ -69,7 +76,14 @@ pub fn perft_h(board: &mut Board, depth: u8, hash_table: &mut Vec<PerftHashEntry
     for _ in 0..depth {
         vecs.push(Vec::with_capacity(100));
     }
-    _impl(board, &mut vecs, depth as u64, depth_shift, hash_mask, hash_table)
+    _impl(
+        board,
+        &mut vecs,
+        depth as u64,
+        depth_shift,
+        hash_mask,
+        hash_table,
+    )
 }
 
 pub fn perft_split(board: &mut Board, depth: u8) -> u64 {

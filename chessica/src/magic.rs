@@ -26,7 +26,11 @@ pub fn find_fancy_bishop_magics(min_index_bits: u8, max_attempts: u32) -> Vec<Ma
     find_fancy_magics(min_index_bits, max_attempts, &BISHOP)
 }
 
-fn find_fancy_magics(min_index_bits: u8, max_attempts: u32, slider: &Slider) -> Vec<MagicBitBoardTable> {
+fn find_fancy_magics(
+    min_index_bits: u8,
+    max_attempts: u32,
+    slider: &Slider,
+) -> Vec<MagicBitBoardTable> {
     let mut tables: Vec<MagicBitBoardTable> = vec![];
     for ordinal in 0u8..64 {
         let square = Square::from_ordinal(ordinal);
@@ -120,7 +124,12 @@ const BISHOP: Slider = Slider {
 #[derive(Debug)]
 struct MagicTableMaxAttemptsExceededError;
 
-fn try_find_magic_table(slider: &Slider, square: Square, index_bits: u8, max_attempts: u32) -> Result<MagicBitBoardTable, MagicTableMaxAttemptsExceededError> {
+fn try_find_magic_table(
+    slider: &Slider,
+    square: Square,
+    index_bits: u8,
+    max_attempts: u32,
+) -> Result<MagicBitBoardTable, MagicTableMaxAttemptsExceededError> {
     let index_shift = 64 - index_bits;
     let blocker_mask = slider.blocker_mask(square);
     let mut rng = rand::thread_rng();
@@ -305,4 +314,3 @@ pub const BISHOP_MAGICS: [(u8, u64); 64] = [
     (5, 0x011040044840c100),
     (6, 0x0040080104012242),
 ];
-

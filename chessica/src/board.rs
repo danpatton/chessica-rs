@@ -3,11 +3,11 @@ use regex::Regex;
 use string_builder::Builder;
 
 use crate::bitboard::BitBoard;
-use crate::magic::{MagicBitBoardTable, build_magic_rook_tables, build_magic_bishop_tables};
+use crate::magic::{build_magic_bishop_tables, build_magic_rook_tables, MagicBitBoardTable};
 use crate::square::Square;
+use crate::zobrist::ZobristHash;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
-use crate::zobrist::ZobristHash;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct MoveUndoInfo {
@@ -62,28 +62,28 @@ impl Board {
     fn back_rank(side: Side) -> u8 {
         match side {
             Side::White => 0,
-            Side::Black => 7
+            Side::Black => 7,
         }
     }
 
     fn pawn_double_push_rank(side: Side) -> u8 {
         match side {
             Side::White => 3,
-            Side::Black => 4
+            Side::Black => 4,
         }
     }
 
     fn short_castling_flag(side: Side) -> u8 {
         match side {
             Side::White => 0x1,
-            Side::Black => 0x2
+            Side::Black => 0x2,
         }
     }
 
     fn long_castling_flag(side: Side) -> u8 {
         match side {
             Side::White => 0x4,
-            Side::Black => 0x8
+            Side::Black => 0x8,
         }
     }
 
@@ -328,7 +328,7 @@ impl Board {
     fn get_pieces(&self, side: Side) -> BitBoard {
         match side {
             Side::White => self.white_pieces,
-            Side::Black => self.black_pieces
+            Side::Black => self.black_pieces,
         }
     }
 
@@ -481,11 +481,8 @@ impl Board {
     }
 
     pub fn push(&mut self, move_: &Move) {
-        let move_undo_info = MoveUndoInfo::new(
-            self.castling_rights,
-            self.half_move_clock,
-            self.ep_square,
-        );
+        let move_undo_info =
+            MoveUndoInfo::new(self.castling_rights, self.half_move_clock, self.ep_square);
         if let Some(ep_square) = self.ep_square {
             self.z_hash.flip_ep_file(ep_square.file());
         }
@@ -493,7 +490,7 @@ impl Board {
         match move_ {
             Regular(m) => {
                 self.apply_regular_move(m);
-                if m.piece == Piece::Pawn || m.captured_piece.is_some() {
+                if m.piece() == Piece::Pawn || m.is_capture() {
                     self.half_move_clock = 0;
                 } else {
                     self.half_move_clock += 1;
@@ -566,28 +563,28 @@ impl Board {
     }
 
     fn apply_regular_move(&mut self, m: &RegularMove) {
-        if let Some(captured_piece) = m.captured_piece {
-            self.apply_capture(self.side_to_not_move, captured_piece, m.to);
-        } else if m.piece == Piece::Pawn {
+        if let Some(captured_piece) = m.captured_piece() {
+            self.apply_capture(self.side_to_not_move, captured_piece, m.to());
+        } else if m.piece() == Piece::Pawn {
             if self.side_to_move == Side::White {
-                if m.from.rank() == 1 && m.to.rank() == 3 {
-                    self.ep_square = m.from.delta(1, 0);
-                    self.z_hash.flip_ep_file(m.to.file());
+                if m.from().rank() == 1 && m.to().rank() == 3 {
+                    self.ep_square = m.from().delta(1, 0);
+                    self.z_hash.flip_ep_file(m.to().file());
                 }
             } else {
-                if m.from.rank() == 6 && m.to.rank() == 4 {
-                    self.ep_square = m.from.delta(-1, 0);
-                    self.z_hash.flip_ep_file(m.to.file());
+                if m.from().rank() == 6 && m.to().rank() == 4 {
+                    self.ep_square = m.from().delta(-1, 0);
+                    self.z_hash.flip_ep_file(m.to().file());
                 }
             }
         }
-        self.apply_move(self.side_to_move, m.piece, m.from, m.to);
+        self.apply_move(self.side_to_move, m.piece(), m.from(), m.to());
     }
 
     fn undo_regular_move(&mut self, m: &RegularMove) {
-        self.undo_move(self.side_to_not_move, m.piece, m.from, m.to);
-        if let Some(captured_piece) = m.captured_piece {
-            self.undo_capture(self.side_to_move, captured_piece, m.to);
+        self.undo_move(self.side_to_not_move, m.piece(), m.from(), m.to());
+        if let Some(captured_piece) = m.captured_piece() {
+            self.undo_capture(self.side_to_move, captured_piece, m.to());
         }
     }
 
@@ -596,7 +593,7 @@ impl Board {
             Side::White => (sq!(e1), sq!(g1), sq!(h1), sq!(f1)),
             Side::Black => (sq!(e8), sq!(g8), sq!(h8), sq!(f8)),
         };
-        self.apply_move(self.side_to_move,Piece::King, king, king_to);
+        self.apply_move(self.side_to_move, Piece::King, king, king_to);
         self.apply_move(self.side_to_move, Piece::Rook, rook, rook_to);
     }
 
@@ -628,26 +625,26 @@ impl Board {
     }
 
     fn apply_ep_capture_move(&mut self, m: &EnPassantCaptureMove) {
-        self.apply_capture(self.side_to_not_move, Piece::Pawn, m.captured_pawn);
-        self.apply_move(self.side_to_move, Piece::Pawn, m.from, m.to);
+        self.apply_capture(self.side_to_not_move, Piece::Pawn, m.captured_pawn());
+        self.apply_move(self.side_to_move, Piece::Pawn, m.from(), m.to());
     }
 
     fn undo_ep_capture_move(&mut self, m: &EnPassantCaptureMove) {
-        self.undo_move(self.side_to_not_move, Piece::Pawn, m.from, m.to);
-        self.undo_capture(self.side_to_move, Piece::Pawn, m.captured_pawn);
+        self.undo_move(self.side_to_not_move, Piece::Pawn, m.from(), m.to());
+        self.undo_capture(self.side_to_move, Piece::Pawn, m.captured_pawn());
     }
 
     fn apply_promotion_move(&mut self, m: &PromotionMove) {
-        if let Some(captured_piece) = m.captured_piece {
-            self.apply_capture(self.side_to_not_move, captured_piece, m.to);
+        if let Some(captured_piece) = m.captured_piece() {
+            self.apply_capture(self.side_to_not_move, captured_piece, m.to());
         }
-        self.apply_promotion(self.side_to_move, m.from, m.to, m.promotion_piece);
+        self.apply_promotion(self.side_to_move, m.from(), m.to(), m.promotion_piece());
     }
 
     fn undo_promotion_move(&mut self, m: &PromotionMove) {
-        self.undo_promotion(self.side_to_not_move, m.from, m.to, m.promotion_piece);
-        if let Some(captured_piece) = m.captured_piece {
-            self.undo_capture(self.side_to_move, captured_piece, m.to);
+        self.undo_promotion(self.side_to_not_move, m.from(), m.to(), m.promotion_piece());
+        if let Some(captured_piece) = m.captured_piece() {
+            self.undo_capture(self.side_to_move, captured_piece, m.to());
         }
     }
 
@@ -670,7 +667,7 @@ impl Board {
     pub fn legal_moves_noalloc(&self, moves: &mut Vec<Move>) -> usize {
         let (own_pieces, enemy_pieces) = match self.side_to_move {
             Side::White => (self.white_pieces, self.black_pieces),
-            Side::Black => (self.black_pieces, self.white_pieces)
+            Side::Black => (self.black_pieces, self.white_pieces),
         };
         let all_pieces = own_pieces | enemy_pieces;
 
@@ -685,12 +682,8 @@ impl Board {
 
         let king_moves = own_king.king_moves() & !(own_pieces | attacked_squares);
         for square in king_moves {
-            moves.push(Regular(RegularMove {
-                piece: Piece::King,
-                from: own_king,
-                to: square,
-                captured_piece: self.get_piece(self.side_to_not_move, square),
-            }));
+            let captured_piece = self.get_piece(self.side_to_not_move, square);
+            moves.push(Move::regular(Piece::King, own_king, square, captured_piece));
         }
         if checks.checking_pieces.count() > 1 {
             // double check --> only king moves are legal
@@ -704,7 +697,7 @@ impl Board {
                 let king_to_square = own_king.delta(0, 2).unwrap();
                 let castling_path = own_king.bounding_box(king_to_square) & !own_king;
                 if !(castling_path & danger_squares).any() {
-                    moves.push(ShortCastling(self.side_to_move))
+                    moves.push(Move::short_castling(self.side_to_move))
                 }
             }
 
@@ -714,7 +707,7 @@ impl Board {
                 let castling_path = own_king.bounding_box(king_to_square) & !own_king;
                 if !(castling_path & danger_squares).any() && !all_pieces.is_occupied(extra_square)
                 {
-                    moves.push(LongCastling(self.side_to_move))
+                    moves.push(Move::long_castling(self.side_to_move))
                 }
             }
         }
@@ -741,12 +734,13 @@ impl Board {
                 Piece::Queen
             };
             for square in allowed_moves {
-                moves.push(Regular(RegularMove {
+                let captured_piece = self.get_piece(self.side_to_not_move, square);
+                moves.push(Move::regular(
                     piece,
-                    from: own_bishop_or_queen,
-                    to: square,
-                    captured_piece: self.get_piece(self.side_to_not_move, square),
-                }));
+                    own_bishop_or_queen,
+                    square,
+                    captured_piece,
+                ));
             }
         }
 
@@ -765,12 +759,13 @@ impl Board {
                 Piece::Queen
             };
             for square in allowed_moves {
-                moves.push(Regular(RegularMove {
+                let captured_piece = self.get_piece(self.side_to_not_move, square);
+                moves.push(Move::regular(
                     piece,
-                    from: own_rook_or_queen,
-                    to: square,
-                    captured_piece: self.get_piece(self.side_to_not_move, square),
-                }));
+                    own_rook_or_queen,
+                    square,
+                    captured_piece,
+                ));
             }
         }
 
@@ -782,12 +777,13 @@ impl Board {
 
             let allowed_knight_moves = own_knight.knight_moves() & !own_pieces & check_evasion_mask;
             for square in allowed_knight_moves {
-                moves.push(Regular(RegularMove {
-                    piece: Piece::Knight,
-                    from: own_knight,
-                    to: square,
-                    captured_piece: self.get_piece(self.side_to_not_move, square),
-                }));
+                let captured_piece = self.get_piece(self.side_to_not_move, square);
+                moves.push(Move::regular(
+                    Piece::Knight,
+                    own_knight,
+                    square,
+                    captured_piece,
+                ));
             }
         }
 
@@ -795,57 +791,47 @@ impl Board {
 
         let diagonally_pinned_pawns = own_pawns & diagonal_pins;
         for own_pawn in diagonally_pinned_pawns {
-            let capture_mask =
-                own_pawn.bb().pawn_captures(self.side_to_move) & enemy_pieces;
+            let capture_mask = own_pawn.bb().pawn_captures(self.side_to_move) & enemy_pieces;
             let legal_captures = capture_mask & diagonal_pins & check_evasion_mask;
             for capture in legal_captures {
                 // possible for diagonally pinned pawn to promote
                 if capture.rank() == Board::back_rank(self.side_to_not_move) {
                     for promotion_piece in [Piece::Queen, Piece::Rook, Piece::Knight, Piece::Bishop]
                     {
-                        moves.push(Promotion(PromotionMove {
-                            from: own_pawn,
-                            to: capture,
-                            captured_piece: self.get_piece(self.side_to_not_move, capture),
+                        let captured_piece = self.get_piece(self.side_to_not_move, capture);
+                        moves.push(Move::promotion(
+                            own_pawn,
+                            capture,
                             promotion_piece,
-                        }));
+                            captured_piece,
+                        ));
                     }
                 } else {
-                    moves.push(Regular(RegularMove {
-                        piece: Piece::Pawn,
-                        from: own_pawn,
-                        to: capture,
-                        captured_piece: self.get_piece(self.side_to_not_move, capture),
-                    }));
+                    let captured_piece = self.get_piece(self.side_to_not_move, capture);
+                    moves.push(Move::regular(
+                        Piece::Pawn,
+                        own_pawn,
+                        capture,
+                        captured_piece,
+                    ));
                 }
             }
         }
 
         let orthogonally_pinned_pawns = own_pawns & orthogonal_pins;
         for own_pawn in orthogonally_pinned_pawns {
-            let push_mask =
-                own_pawn.bb().pawn_pushes(self.side_to_move) & !all_pieces;
+            let push_mask = own_pawn.bb().pawn_pushes(self.side_to_move) & !all_pieces;
             let legal_pushes = push_mask & orthogonal_pins & check_evasion_mask;
             for push in legal_pushes {
                 // impossible for orthogonally pinned pawn to promote
-                moves.push(Regular(RegularMove {
-                    piece: Piece::Pawn,
-                    from: own_pawn,
-                    to: push,
-                    captured_piece: None,
-                }));
+                moves.push(Move::regular(Piece::Pawn, own_pawn, push, None));
             }
             let double_push_rank = BitBoard::rank(Board::pawn_double_push_rank(self.side_to_move));
             let double_push_mask =
                 push_mask.pawn_pushes(self.side_to_move) & double_push_rank & !all_pieces;
             let legal_double_pushes = double_push_mask & orthogonal_pins & check_evasion_mask;
             for double_push in legal_double_pushes {
-                moves.push(Regular(RegularMove {
-                    piece: Piece::Pawn,
-                    from: own_pawn,
-                    to: double_push,
-                    captured_piece: None,
-                }));
+                moves.push(Move::regular(Piece::Pawn, own_pawn, double_push, None));
             }
         }
 
@@ -857,20 +843,10 @@ impl Board {
         for (from, to) in pawn_pushees.zip(pawn_pushes) {
             if to.rank() % 7 == 0 {
                 for promotion_piece in [Piece::Queen, Piece::Rook, Piece::Knight, Piece::Bishop] {
-                    moves.push(Promotion(PromotionMove {
-                        from,
-                        to,
-                        captured_piece: None,
-                        promotion_piece,
-                    }));
+                    moves.push(Move::promotion(from, to, promotion_piece, None));
                 }
             } else {
-                moves.push(Regular(RegularMove {
-                    piece: Piece::Pawn,
-                    from,
-                    to,
-                    captured_piece: None,
-                }));
+                moves.push(Move::regular(Piece::Pawn, from, to, None));
             }
         }
 
@@ -884,20 +860,19 @@ impl Board {
             .pawn_pushes(self.side_to_not_move)
             .pawn_pushes(self.side_to_not_move);
         for (from, to) in pawn_double_pushees.zip(pawn_double_pushes) {
-            moves.push(Regular(RegularMove {
-                piece: Piece::Pawn,
-                from,
-                to,
-                captured_piece: None,
-            }));
+            moves.push(Move::regular(Piece::Pawn, from, to, None));
         }
 
-        let pawn_left_captures_excl_ep =
-            unpinned_pawns.pawn_left_captures(self.side_to_move) & enemy_pieces & check_evasion_mask;
-        let pawn_left_capturers = pawn_left_captures_excl_ep.pawn_left_captures(self.side_to_not_move);
-        let pawn_right_captures_excl_ep =
-            unpinned_pawns.pawn_right_captures(self.side_to_move) & enemy_pieces & check_evasion_mask;
-        let pawn_right_capturers = pawn_right_captures_excl_ep.pawn_right_captures(self.side_to_not_move);
+        let pawn_left_captures_excl_ep = unpinned_pawns.pawn_left_captures(self.side_to_move)
+            & enemy_pieces
+            & check_evasion_mask;
+        let pawn_left_capturers =
+            pawn_left_captures_excl_ep.pawn_left_captures(self.side_to_not_move);
+        let pawn_right_captures_excl_ep = unpinned_pawns.pawn_right_captures(self.side_to_move)
+            & enemy_pieces
+            & check_evasion_mask;
+        let pawn_right_capturers =
+            pawn_right_captures_excl_ep.pawn_right_captures(self.side_to_not_move);
 
         let pawn_captures = pawn_left_capturers
             .zip(pawn_left_captures_excl_ep)
@@ -907,20 +882,10 @@ impl Board {
             let captured_piece = self.get_piece(self.side_to_not_move, to);
             if to.rank() == Board::back_rank(self.side_to_not_move) {
                 for promotion_piece in [Piece::Queen, Piece::Rook, Piece::Knight, Piece::Bishop] {
-                    moves.push(Promotion(PromotionMove {
-                        from,
-                        to,
-                        captured_piece,
-                        promotion_piece,
-                    }));
+                    moves.push(Move::promotion(from, to, promotion_piece, captured_piece));
                 }
             } else {
-                moves.push(Regular(RegularMove {
-                    piece: Piece::Pawn,
-                    from,
-                    to,
-                    captured_piece,
-                }));
+                moves.push(Move::regular(Piece::Pawn, from, to, captured_piece));
             }
         }
 
@@ -949,11 +914,8 @@ impl Board {
             }
             if can_capture_ep {
                 for own_pawn in potential_capturers {
-                    moves.push(EnPassantCapture(EnPassantCaptureMove {
-                        from: own_pawn,
-                        to: ep_square,
-                        captured_pawn: enemy_pawn.single(),
-                    }));
+                    let captured_pawn = enemy_pawn.single();
+                    moves.push(Move::en_passant(own_pawn, ep_square, captured_pawn));
                 }
             }
         }
@@ -981,7 +943,12 @@ impl Board {
         }
     }
 
-    fn attacked_squares(&self, own_pieces: BitBoard, enemy_pieces: BitBoard, all_pieces: BitBoard) -> BitBoard {
+    fn attacked_squares(
+        &self,
+        own_pieces: BitBoard,
+        enemy_pieces: BitBoard,
+        all_pieces: BitBoard,
+    ) -> BitBoard {
         let mut attacked_squares = (self.pawns & enemy_pieces).pawn_captures(self.side_to_not_move);
         for king in self.kings & enemy_pieces {
             attacked_squares |= king.king_moves();
