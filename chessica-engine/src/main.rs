@@ -1,11 +1,12 @@
 extern crate chessica;
 
+use chessica::board::Board;
+use chessica::magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
+use chessica::perft::{perft, perft_h, PerftHashEntry};
+use chessica::{EnPassantCaptureMove, Move, PromotionMove, RegularMove};
 use std::env;
 use std::process::exit;
-use chessica::board::Board;
-use chessica::perft::{perft, perft_h, PerftHashEntry};
 use std::time::Instant;
-use chessica::magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -17,14 +18,22 @@ fn main() {
                     let start = Instant::now();
                     let bishop_magics = find_fancy_bishop_magics(5, 1_000_000);
                     let duration = start.elapsed();
-                    println!("Found {} bishop magics ({:.3} sec)", bishop_magics.len(), duration.as_secs_f32());
-                },
+                    println!(
+                        "Found {} bishop magics ({:.3} sec)",
+                        bishop_magics.len(),
+                        duration.as_secs_f32()
+                    );
+                }
                 "rmagics" => {
                     let start = Instant::now();
                     let rook_magics = find_fancy_rook_magics(10, 1_000_000);
                     let duration = start.elapsed();
-                    println!("Found {} rook magics ({:.3} sec)", rook_magics.len(), duration.as_secs_f32());
-                },
+                    println!(
+                        "Found {} rook magics ({:.3} sec)",
+                        rook_magics.len(),
+                        duration.as_secs_f32()
+                    );
+                }
                 "perft" => {
                     if args.len() < 4 || args.len() > 5 {
                         println!("Usage: perft <max_depth> [-H<hash_bits>] <fen>");
@@ -52,10 +61,14 @@ fn main() {
                             let start = Instant::now();
                             let moves = perft_h(&mut board, depth, &mut hash_table);
                             let duration = start.elapsed();
-                            println!("perft({:2})= {:12} ( {:.3} sec)", depth, moves, duration.as_secs_f32());
+                            println!(
+                                "perft({:2})= {:12} ( {:.3} sec)",
+                                depth,
+                                moves,
+                                duration.as_secs_f32()
+                            );
                         }
-                    }
-                    else {
+                    } else {
                         let fen = arg3;
                         let mut board = Board::parse_fen(fen).expect("Invalid fen");
                         // ensure magic bitboards are initialised
@@ -65,16 +78,21 @@ fn main() {
                             let start = Instant::now();
                             let moves = perft(&mut board, depth);
                             let duration = start.elapsed();
-                            println!("perft({:2})= {:12} ( {:.3} sec)", depth, moves, duration.as_secs_f32());
+                            println!(
+                                "perft({:2})= {:12} ( {:.3} sec)",
+                                depth,
+                                moves,
+                                duration.as_secs_f32()
+                            );
                         }
                     }
-                },
+                }
                 _ => {
                     println!("Unknown command: {}", command);
                     exit(-1);
                 }
             }
-        },
+        }
         _ => {
             println!("Usage: <command> [args]");
             exit(-1);
