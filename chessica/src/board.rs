@@ -663,7 +663,11 @@ impl Board {
 
     pub fn legal_moves(&self) -> Vec<Move> {
         let mut moves: Vec<Move> = vec![];
+        self.legal_moves_noalloc(&mut moves);
+        moves
+    }
 
+    pub fn legal_moves_noalloc(&self, moves: &mut Vec<Move>) -> usize {
         let (own_pieces, enemy_pieces) = match self.side_to_move {
             Side::White => (self.white_pieces, self.black_pieces),
             Side::Black => (self.black_pieces, self.white_pieces)
@@ -690,7 +694,7 @@ impl Board {
         }
         if checks.checking_pieces.count() > 1 {
             // double check --> only king moves are legal
-            return moves;
+            return moves.len();
         }
 
         if !in_check {
@@ -954,7 +958,7 @@ impl Board {
             }
         }
 
-        moves
+        moves.len()
     }
 
     fn bishop_moves(&self, square: Square, all_pieces: BitBoard) -> BitBoard {
