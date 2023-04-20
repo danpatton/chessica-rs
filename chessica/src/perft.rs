@@ -4,47 +4,30 @@ use crate::Move;
 #[derive(Clone, Copy)]
 pub struct PerftHashEntry(pub u64, pub u64);
 
-struct VecChain {
-    current: Vec<Move>,
-    next: Option<Box<VecChain>>
-}
-
-impl VecChain {
-    fn build(length: u8, capacity: usize) -> Self {
-        let tail = VecChain {
-            current: Vec::with_capacity(capacity),
-            next: None
-        };
-        let mut head = tail;
-        for _ in 1..length {
-            head = VecChain {
-                current: Vec::with_capacity(capacity),
-                next: Some(Box::new(head))
-            };
-        }
-        head
-    }
-}
-
 pub fn perft(board: &mut Board, depth: u8) -> u64 {
-    fn _impl(board: &mut Board, chain: &mut VecChain) -> u64 {
-        chain.current.truncate(0);
-        let n_moves = board.legal_moves_noalloc(&mut chain.current);
-        match &mut chain.next {
-            None => n_moves as u64,
-            Some(next_chain) => {
+    fn _impl(board: &mut Board, vecs: &mut [Vec<Move>]) -> u64 {
+        let (head, tail) = vecs.split_at_mut(1);
+        let h = &mut head[0];
+        h.truncate(0);
+        let n_moves = board.legal_moves_noalloc(h);
+        match tail.len() {
+            0 => n_moves as u64,
+            _ => {
                 let mut count = 0u64;
-                for move_ in chain.current.iter() {
+                for move_ in h.iter() {
                     board.push(move_);
-                    count += _impl(board, next_chain);
+                    count += _impl(board, tail);
                     board.pop();
                 }
                 count
             },
         }
     }
-    let mut chain = VecChain::build(depth, 100);
-    _impl(board, &mut chain)
+    let mut vecs: Vec<Vec<Move>> = vec![];
+    for _ in 0..depth {
+        vecs.push(Vec::with_capacity(100));
+    }
+    _impl(board, &mut vecs)
 }
 
 pub fn perft_h(board: &mut Board, depth: u8, hash_table: &mut Vec<PerftHashEntry>) -> u64 {
@@ -54,22 +37,24 @@ pub fn perft_h(board: &mut Board, depth: u8, hash_table: &mut Vec<PerftHashEntry
     let depth_shift = (hash_table.len().trailing_zeros() - 3) as u8;
     let hash_mask = (1u64 << depth_shift) - 1;
 
-    fn _impl(board: &mut Board, chain: &mut VecChain, depth: u64, depth_shift: u8, hash_mask: u64, hash_table: &mut Vec<PerftHashEntry>) -> u64 {
+    fn _impl(board: &mut Board, vecs: &mut [Vec<Move>], depth: u64, depth_shift: u8, hash_mask: u64, hash_table: &mut Vec<PerftHashEntry>) -> u64 {
         let hash = board.hash();
         let idx = ((depth << depth_shift) | (hash & hash_mask)) as usize;
         let entry = &hash_table[idx];
         if entry.0 == hash {
             return entry.1;
         }
-        chain.current.truncate(0);
-        let n_moves = board.legal_moves_noalloc(&mut chain.current);
-        let result = match &mut chain.next {
-            None => n_moves as u64,
-            Some(next_chain) => {
+        let (head, tail) = vecs.split_at_mut(1);
+        let h = &mut head[0];
+        h.truncate(0);
+        let n_moves = board.legal_moves_noalloc(h);
+        let result = match tail.len() {
+            0 => n_moves as u64,
+            _ => {
                 let mut count = 0u64;
-                for move_ in chain.current.iter() {
+                for move_ in h.iter() {
                     board.push(move_);
-                    count += _impl(board, next_chain, depth - 1, depth_shift, hash_mask, hash_table);
+                    count += _impl(board, tail, depth - 1, depth_shift, hash_mask, hash_table);
                     board.pop();
                 }
                 count
@@ -80,8 +65,11 @@ pub fn perft_h(board: &mut Board, depth: u8, hash_table: &mut Vec<PerftHashEntry
         result
     }
 
-    let mut chain = VecChain::build(depth, 100);
-    _impl(board, &mut chain, depth as u64, depth_shift, hash_mask, hash_table)
+    let mut vecs: Vec<Vec<Move>> = vec![];
+    for _ in 0..depth {
+        vecs.push(Vec::with_capacity(100));
+    }
+    _impl(board, &mut vecs, depth as u64, depth_shift, hash_mask, hash_table)
 }
 
 pub fn perft_split(board: &mut Board, depth: u8) -> u64 {
