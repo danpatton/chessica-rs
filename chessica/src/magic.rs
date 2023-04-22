@@ -1,6 +1,7 @@
 use crate::bitboard::BitBoard;
 use crate::square::Square;
 use rand::Rng;
+use crate::errors::{HashCollisionError, MagicTableMaxAttemptsExceededError};
 
 #[derive(Debug)]
 pub struct MagicBitBoardTable {
@@ -121,9 +122,6 @@ const BISHOP: Slider = Slider {
     deltas: [[-1, -1], [-1, 1], [1, -1], [1, 1]],
 };
 
-#[derive(Debug)]
-struct MagicTableMaxAttemptsExceededError;
-
 fn try_find_magic_table(
     slider: &Slider,
     square: Square,
@@ -151,9 +149,6 @@ fn try_find_magic_table(
     }
     Err(MagicTableMaxAttemptsExceededError)
 }
-
-#[derive(Debug)]
-struct HashCollisionError;
 
 fn try_make_magic_table(
     slider: &Slider,

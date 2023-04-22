@@ -4,6 +4,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::ops;
 use std::str::FromStr;
+use crate::errors::ParseSquareError;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Square {
@@ -88,9 +89,6 @@ impl ops::Not for Square {
         BitBoard { value: !self.bit() }
     }
 }
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ParseSquareError;
 
 impl FromStr for Square {
     type Err = ParseSquareError;

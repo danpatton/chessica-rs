@@ -3,6 +3,7 @@ extern crate tabled;
 
 use crate::square::Square;
 use enum_map::Enum;
+use crate::errors::FenCharParseError;
 
 pub mod board;
 pub mod magic;
@@ -12,6 +13,7 @@ mod bitboard;
 mod masks;
 mod square;
 mod zobrist;
+mod errors;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
 pub enum Side {
@@ -42,8 +44,6 @@ impl From<u8> for Piece {
         }
     }
 }
-
-pub struct FenCharParseError;
 
 impl Piece {
     fn parse_fen_char(c: u8) -> Result<(Piece, Side), FenCharParseError> {

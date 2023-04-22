@@ -8,6 +8,7 @@ use crate::square::Square;
 use crate::zobrist::ZobristHash;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
+use crate::errors::{FenParseError, IllegalMoveError};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct MoveUndoInfo {
@@ -51,12 +52,6 @@ pub struct Board {
     z_hash: ZobristHash,
     move_stack: Vec<(Move, MoveUndoInfo)>,
 }
-
-#[derive(Debug)]
-pub struct FenParseError;
-
-#[derive(Debug)]
-pub struct IllegalMoveError;
 
 impl Board {
     fn back_rank(side: Side) -> u8 {
