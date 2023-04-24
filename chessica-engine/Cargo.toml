@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 chessica = { path = "../chessica" }
+test-case = "3.1.0"
