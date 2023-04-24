@@ -320,6 +320,29 @@ impl Board {
         sb.string().unwrap()
     }
 
+    pub fn get_negamax_score(&self) -> i32 {
+        if self.is_in_check() {
+            if self.legal_moves().is_empty() {
+                // checkmate!
+                return i32::MIN + 1;
+            }
+        }
+        self.get_material(self.side_to_move) - self.get_material(self.side_to_not_move)
+    }
+
+    pub fn get_material(&self, side: Side) -> i32 {
+        let own_pieces = match side {
+            Side::White => self.white_pieces,
+            Side::Black => self.black_pieces
+        };
+        (self.pawns & own_pieces).piece_value(Piece::Pawn) +
+        (self.knights & own_pieces).piece_value(Piece::Knight) +
+        (self.bishops & own_pieces).piece_value(Piece::Bishop) +
+        (self.rooks & own_pieces).piece_value(Piece::Rook) +
+        (self.queens & own_pieces).piece_value(Piece::Queen) +
+        (self.kings & own_pieces).piece_value(Piece::King)
+    }
+
     fn get_pieces(&self, side: Side) -> BitBoard {
         match side {
             Side::White => self.white_pieces,
@@ -651,6 +674,21 @@ impl Board {
     fn can_castle_long(&self, side: Side) -> bool {
         let flag = Board::long_castling_flag(side);
         self.castling_rights & flag == flag
+    }
+
+    pub fn side_to_move(&self) -> Side {
+        self.side_to_move
+    }
+
+    pub fn is_in_check(&self) -> bool {
+        let (own_pieces, enemy_pieces) = match self.side_to_move {
+            Side::White => (self.white_pieces, self.black_pieces),
+            Side::Black => (self.black_pieces, self.white_pieces),
+        };
+        let all_pieces = own_pieces | enemy_pieces;
+
+        let checks = self.checks(own_pieces, enemy_pieces, all_pieces);
+        checks.checking_pieces.any()
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {

@@ -1,9 +1,10 @@
+mod negamax;
+
 extern crate chessica;
 
 use chessica::board::Board;
 use chessica::magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
 use chessica::perft::{perft, perft_h, PerftHashEntry};
-use chessica::{EnPassantCaptureMove, Move, PromotionMove, RegularMove};
 use std::env;
 use std::process::exit;
 use std::time::Instant;

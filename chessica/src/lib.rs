@@ -8,10 +8,10 @@ use crate::errors::FenCharParseError;
 pub mod board;
 pub mod magic;
 pub mod perft;
+pub mod square;
 
 mod bitboard;
 mod masks;
-mod square;
 mod zobrist;
 mod errors;
 
@@ -19,6 +19,15 @@ mod errors;
 pub enum Side {
     White,
     Black,
+}
+
+impl Side {
+    pub fn loss_score(&self) -> i32 {
+        match *self {
+            Side::White => i32::MIN,
+            Side::Black => i32::MAX
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
@@ -46,6 +55,17 @@ impl From<u8> for Piece {
 }
 
 impl Piece {
+    pub fn value(self) -> i32 {
+        match self {
+            Piece::Pawn => 100,
+            Piece::Knight => 300,
+            Piece::Bishop => 300,
+            Piece::Rook => 500,
+            Piece::Queen => 900,
+            Piece::King => 1_000_000
+        }
+    }
+
     fn parse_fen_char(c: u8) -> Result<(Piece, Side), FenCharParseError> {
         match c {
             b'K' => Ok((Piece::King, Side::White)),
@@ -80,21 +100,21 @@ impl Piece {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct RegularMove {
     _from: Square,
     _to: Square,
     _pieces: u8,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct EnPassantCaptureMove {
     _from: Square,
     _to: Square,
     _captured_pawn: Square,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct PromotionMove {
     _from: Square,
     _to: Square,
@@ -204,7 +224,7 @@ impl PromotionMove {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Move {
     Regular(RegularMove),
     ShortCastling(Side),

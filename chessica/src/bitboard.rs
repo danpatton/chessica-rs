@@ -4,7 +4,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::ops;
 
-use crate::Side;
+use crate::{Piece, Side};
 use crate::Side::White;
 use tabled::{builder::Builder, Style};
 
@@ -41,6 +41,10 @@ impl BitBoard {
         BitBoard {
             value: FILE[i as usize],
         }
+    }
+
+    pub fn piece_value(self, piece: Piece) -> i32 {
+        piece.value() * self.value.count_ones() as i32
     }
 
     pub fn count(self) -> u32 {
