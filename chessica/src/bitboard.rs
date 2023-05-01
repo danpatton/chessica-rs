@@ -43,8 +43,8 @@ impl BitBoard {
         }
     }
 
-    pub fn piece_value(self, piece: Piece) -> i32 {
-        piece.value() * self.value.count_ones() as i32
+    pub fn piece_value(self, piece: Piece) -> i16 {
+        piece.value() * self.value.count_ones() as i16
     }
 
     pub fn count(self) -> u32 {

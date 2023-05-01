@@ -1,4 +1,5 @@
-mod negamax;
+mod search;
+mod uci;
 
 extern crate chessica;
 
@@ -6,8 +7,10 @@ use chessica::board::Board;
 use chessica::magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
 use chessica::perft::{perft, perft_h, PerftHashEntry};
 use std::env;
+use std::io::{BufRead, BufReader, BufWriter, stdin, stdout};
 use std::process::exit;
 use std::time::Instant;
+use crate::uci::UciSession;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -95,8 +98,10 @@ fn main() {
             }
         }
         _ => {
-            println!("Usage: <command> [args]");
-            exit(-1);
+            let output = Box::new(BufWriter::new(stdout()));
+            let mut uci_session = UciSession::new(output);
+            let mut input: Box<dyn BufRead> = Box::new(BufReader::new(stdin()));
+            uci_session.run(&mut input);
         }
     }
 }

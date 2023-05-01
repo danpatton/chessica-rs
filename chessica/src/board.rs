@@ -320,17 +320,17 @@ impl Board {
         sb.string().unwrap()
     }
 
-    pub fn get_negamax_score(&self) -> i32 {
+    pub fn get_negamax_score(&self) -> i16 {
         if self.is_in_check() {
             if self.legal_moves().is_empty() {
                 // checkmate!
-                return i32::MIN + 1;
+                return -30_000;
             }
         }
         self.get_material(self.side_to_move) - self.get_material(self.side_to_not_move)
     }
 
-    pub fn get_material(&self, side: Side) -> i32 {
+    pub fn get_material(&self, side: Side) -> i16 {
         let own_pieces = match side {
             Side::White => self.white_pieces,
             Side::Black => self.black_pieces
@@ -546,7 +546,7 @@ impl Board {
                 ShortCastling(_side) => self.undo_short_castling_move(),
                 LongCastling(_side) => self.undo_long_castling_move(),
                 EnPassantCapture(m) => self.undo_ep_capture_move(&m),
-                Promotion(m) => self.undo_promotion_move(&m),
+                Promotion(m) => self.undo_promotion_move(&m)
             };
             let castling_rights_diff = self.castling_rights ^ move_undo_info.castling_rights;
             if castling_rights_diff != 0 {
@@ -689,6 +689,17 @@ impl Board {
 
         let checks = self.checks(own_pieces, enemy_pieces, all_pieces);
         checks.checking_pieces.any()
+    }
+
+    pub fn legal_captures(&self) -> Vec<Move> {
+        let all_moves = self.legal_moves();
+        let mut captures = vec![];
+        for &move_ in all_moves.iter() {
+            if move_.is_capture() {
+                captures.push(move_);
+            }
+        }
+        captures
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {

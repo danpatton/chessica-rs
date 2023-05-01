@@ -24,8 +24,8 @@ pub enum Side {
 impl Side {
     pub fn loss_score(&self) -> i32 {
         match *self {
-            Side::White => i32::MIN,
-            Side::Black => i32::MAX
+            Side::White => -50_000,
+            Side::Black => 50_000
         }
     }
 }
@@ -55,14 +55,14 @@ impl From<u8> for Piece {
 }
 
 impl Piece {
-    pub fn value(self) -> i32 {
+    pub fn value(self) -> i16 {
         match self {
             Piece::Pawn => 100,
             Piece::Knight => 300,
             Piece::Bishop => 300,
             Piece::Rook => 500,
             Piece::Queen => 900,
-            Piece::King => 1_000_000
+            Piece::King => 10_000
         }
     }
 
@@ -230,7 +230,7 @@ pub enum Move {
     ShortCastling(Side),
     LongCastling(Side),
     EnPassantCapture(EnPassantCaptureMove),
-    Promotion(PromotionMove),
+    Promotion(PromotionMove)
 }
 
 impl Move {
@@ -264,6 +264,43 @@ impl Move {
         Move::EnPassantCapture(EnPassantCaptureMove::new(from, to, captured_pawn))
     }
 
+    pub fn is_capture(&self) -> bool {
+        match self {
+            Move::Regular(m) => m.is_capture(),
+            Move::ShortCastling(_) => false,
+            Move::LongCastling(_) => false,
+            Move::EnPassantCapture(_) => true,
+            Move::Promotion(m) => m.is_capture()
+        }
+    }
+
+    pub fn piece(&self) -> Piece {
+        match self {
+            Move::Regular(m) => m.piece(),
+            Move::ShortCastling(_) => Piece::King,
+            Move::LongCastling(_) => Piece::King,
+            Move::EnPassantCapture(_) => Piece::Pawn,
+            Move::Promotion(_) => Piece::Pawn
+        }
+    }
+
+    pub fn captured_piece(&self) -> Option<Piece> {
+        match self {
+            Move::Regular(m) => m.captured_piece(),
+            Move::ShortCastling(_) => None,
+            Move::LongCastling(_) => None,
+            Move::EnPassantCapture(_) => Some(Piece::Pawn),
+            Move::Promotion(m) => m.captured_piece()
+        }
+    }
+
+    pub fn capture_value(&self) -> i16 {
+        match self.captured_piece() {
+            Some(p) => p.value(),
+            None => 0
+        }
+    }
+
     pub fn to_uci_string(&self) -> String {
         match self {
             Move::Regular(m) => format!("{}{}", m.from(), m.to()),
@@ -279,7 +316,7 @@ impl Move {
                 m.from(),
                 m.to(),
                 m.promotion_piece().to_fen_char(Side::Black)
-            ),
+            )
         }
     }
 }
