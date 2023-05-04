@@ -264,6 +264,26 @@ impl Move {
         Move::EnPassantCapture(EnPassantCaptureMove::new(from, to, captured_pawn))
     }
 
+    pub fn from(&self) -> Square {
+        match self {
+            Move::Regular(m) => m.from(),
+            Move::ShortCastling(side) => if *side == Side::White { sq!(e1) } else { sq!(e8 )},
+            Move::LongCastling(side) => if *side == Side::White { sq!(e1) } else { sq!(e8 )},
+            Move::EnPassantCapture(m) => m.from(),
+            Move::Promotion(m) => m.from()
+        }
+    }
+
+    pub fn to(&self) -> Square {
+        match self {
+            Move::Regular(m) => m.to(),
+            Move::ShortCastling(side) => if *side == Side::White { sq!(g1) } else { sq!(g8 )},
+            Move::LongCastling(side) => if *side == Side::White { sq!(c1) } else { sq!(c8 )},
+            Move::EnPassantCapture(m) => m.to(),
+            Move::Promotion(m) => m.to()
+        }
+    }
+
     pub fn is_capture(&self) -> bool {
         match self {
             Move::Regular(m) => m.is_capture(),

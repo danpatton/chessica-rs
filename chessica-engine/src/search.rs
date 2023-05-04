@@ -139,8 +139,8 @@ impl Search {
         }
 
         if !in_check {
-            // move ordering: MVV-LVA
-            moves.sort_by_key(|m| (-m.capture_value(), m.piece().value()));
+            // move ordering: SEE
+            moves.sort_by_key(|&m| (-board.static_exchange_score(m)));
         }
 
         for &move_ in moves.iter() {

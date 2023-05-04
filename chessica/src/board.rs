@@ -489,6 +489,15 @@ impl Board {
         self.add_piece(side, Piece::Pawn, from);
     }
 
+    pub fn get_uci_move(&self, uci_move: &str) -> Result<Move, IllegalMoveError> {
+        let legal_moves = self.legal_moves();
+        let selected_move = legal_moves.iter().find(|&m| m.to_uci_string() == uci_move);
+        match selected_move {
+            Some(&move_) => Ok(move_),
+            None => Err(IllegalMoveError),
+        }
+    }
+
     pub fn push_uci(&mut self, uci_move: &str) -> Result<(), IllegalMoveError> {
         let legal_moves = self.legal_moves();
         let selected_move = legal_moves.iter().find(|&m| m.to_uci_string() == uci_move);
@@ -681,14 +690,144 @@ impl Board {
     }
 
     pub fn is_in_check(&self) -> bool {
+        let all_pieces = self.white_pieces | self.black_pieces;
         let (own_pieces, enemy_pieces) = match self.side_to_move {
             Side::White => (self.white_pieces, self.black_pieces),
             Side::Black => (self.black_pieces, self.white_pieces),
         };
-        let all_pieces = own_pieces | enemy_pieces;
 
         let checks = self.checks(own_pieces, enemy_pieces, all_pieces);
         checks.checking_pieces.any()
+    }
+
+    pub fn static_exchange_score(&self, move_: Move) -> i16 {
+        if !move_.is_capture() {
+            return 0;
+        }
+        let from = move_.from();
+        let to = move_.to();
+
+        let mut all_pieces = self.white_pieces | self.black_pieces;
+        let (own_pieces, enemy_pieces) = match self.side_to_move {
+            Side::White => (self.white_pieces.clear(from), self.black_pieces),
+            Side::Black => (self.black_pieces.clear(from), self.white_pieces),
+        };
+
+        let bishop_mask = to.bishop_moves();
+        let rook_mask = to.rook_moves();
+
+        let kings = self.kings & to.king_moves();
+        let knights = self.knights & to.knight_moves();
+        let bishops = self.bishops & bishop_mask;
+        let rooks = self.rooks & rook_mask;
+        let queens_diagonal = self.queens & bishop_mask;
+        let queens_orthogonal = self.queens & rook_mask;
+
+        let square_bb = to.bb();
+
+        let mut own_pawns = self.pawns & own_pieces & square_bb.pawn_captures(self.side_to_not_move);
+        let mut own_knights = knights & own_pieces;
+        let mut own_bishops = bishops & own_pieces;
+        let mut own_rooks = rooks & own_pieces;
+        let mut own_queens_diagonal = queens_diagonal & own_pieces;
+        let mut own_queens_orthogonal = queens_orthogonal & own_pieces;
+        let mut own_king = kings & own_pieces;
+
+        let mut enemy_pawns = self.pawns & enemy_pieces & square_bb.pawn_captures(self.side_to_move);
+        let mut enemy_knights = knights & enemy_pieces;
+        let mut enemy_bishops = bishops & enemy_pieces;
+        let mut enemy_rooks = rooks & enemy_pieces;
+        let mut enemy_queens_diagonal = queens_diagonal & enemy_pieces;
+        let mut enemy_queens_orthogonal = queens_orthogonal & enemy_pieces;
+        let mut enemy_king = kings & enemy_pieces;
+
+        if own_king.any() && enemy_king.any() {
+            own_king = BitBoard::empty();
+            enemy_king = BitBoard::empty();
+        }
+
+        fn _pop_attacker(square: Square, attackers: &mut BitBoard, all_pieces: &mut BitBoard, blocker_mask: Option<BitBoard>) -> bool {
+            let attacker = match blocker_mask {
+                Some(blockers) => attackers.find(|a| (a.bounding_box(square) & *all_pieces & blockers).count() == 1),
+                None => attackers.find(|_| true)
+            };
+            if let Some(attacker) = attacker {
+                *attackers = attackers.clear(attacker);
+                *all_pieces = all_pieces.clear(attacker);
+            }
+            attacker.is_some()
+        }
+
+        let mut score = move_.capture_value();
+        let mut piece_on_square = move_.piece();
+
+        loop {
+            if _pop_attacker(to, &mut enemy_pawns, &mut all_pieces, None) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::Pawn;
+            }
+            else if _pop_attacker(to, &mut enemy_knights, &mut all_pieces, None) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::Knight;
+            }
+            else if _pop_attacker(to, &mut enemy_bishops, &mut all_pieces, Some(bishop_mask)) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::Bishop;
+            }
+            else if _pop_attacker(to, &mut enemy_rooks, &mut all_pieces, Some(rook_mask)) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::Rook;
+            }
+            else if _pop_attacker(to, &mut enemy_queens_diagonal, &mut all_pieces, Some(bishop_mask)) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::Queen;
+            }
+            else if _pop_attacker(to, &mut enemy_queens_orthogonal, &mut all_pieces, Some(rook_mask)) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::Queen;
+            }
+            else if _pop_attacker(to, &mut enemy_king, &mut all_pieces, None) {
+                score -= piece_on_square.value();
+                piece_on_square = Piece::King;
+            }
+            else {
+                break;
+            }
+
+            if _pop_attacker(to, &mut own_pawns, &mut all_pieces, None) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::Pawn;
+            }
+            else if _pop_attacker(to, &mut own_knights, &mut all_pieces, None) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::Knight;
+            }
+            else if _pop_attacker(to, &mut own_bishops, &mut all_pieces, Some(bishop_mask)) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::Bishop;
+            }
+            else if _pop_attacker(to, &mut own_rooks, &mut all_pieces, Some(rook_mask)) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::Rook;
+            }
+            else if _pop_attacker(to, &mut own_queens_diagonal, &mut all_pieces, Some(bishop_mask)) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::Queen;
+            }
+            else if _pop_attacker(to, &mut own_queens_orthogonal, &mut all_pieces, Some(rook_mask)) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::Queen;
+            }
+            else if _pop_attacker(to, &mut own_king, &mut all_pieces, None) {
+                score += piece_on_square.value();
+                piece_on_square = Piece::King;
+            }
+            else {
+                break;
+            }
+        }
+
+        score
     }
 
     pub fn legal_captures(&self) -> Vec<Move> {
@@ -1189,5 +1328,16 @@ mod tests {
             let hash_after = board.hash();
             assert_eq!(hash_before, hash_after);
         }
+    }
+
+    #[test_case("2bq1rk1/1pppbp2/r1n2np1/pB1Pp2p/Q2NP3/2P2N2/PP3PPP/R1B1K2R w KQ - 0 1", "d5c6", 300 ; "SEE 1")]
+    #[test_case("2bq1rk1/1pppbp2/r1n2np1/pB1Pp2p/Q3P3/2P2N2/PP2NPPP/R1B1K2R w KQ - 0 1", "d5c6", -800 ; "SEE 2")]
+    #[test_case("r1bq1rk1/ppp1ppbp/n2p1np1/4P3/2PP4/2N2N2/PP2BPPP/R1BQ1RK1 b - - 0 1", "d6e5", 0 ; "SEE 3")]
+    #[test_case("r2q1rk1/pppnppbp/n5p1/4P3/2P3b1/2N2N2/PP2BPPP/R1BQ1RK1 b - - 0 1", "g7e5", 100 ; "SEE 4")]
+    fn test_see(input_fen: &str, uci_move: &str, expected_score: i16) {
+        let board = Board::parse_fen(input_fen).unwrap();
+        let move_ = board.get_uci_move(uci_move).unwrap();
+        let score = board.static_exchange_score(move_);
+        assert_eq!(score, expected_score);
     }
 }
