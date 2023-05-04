@@ -54,21 +54,21 @@ impl UciSession {
                 self.handle_setoption_command(&tokens[1..]);
             },
             "ucinewgame" => {
-                self.handle_ucinewgame_command(&tokens[1..]);
+                self.handle_ucinewgame_command();
             },
             "position" => {
                 self.handle_position_command(&tokens[1..]);
             },
             "go" => {
-                self.handle_go_command(&tokens[1..]);
+                self.handle_go_command();
             },
             "stop" => {
-                self.handle_stop_command(&tokens[1..]);
+                self.handle_stop_command();
             },
             "ponderhit" => {
             },
             "quit" => {
-                self.is_running = false;
+                self.handle_quit_command();
             }
             _ => {
                 self.write(format!("Unknown command: {}", tokens[0]).as_str());
@@ -77,10 +77,10 @@ impl UciSession {
         self.output.flush().unwrap()
     }
 
-    fn handle_setoption_command(&mut self, args: &[&str]) {
+    fn handle_setoption_command(&mut self, _args: &[&str]) {
     }
 
-    fn handle_ucinewgame_command(&mut self, args: &[&str]) {
+    fn handle_ucinewgame_command(&mut self) {
         self.position = Board::starting_position();
         self.tt.clear();
     }
@@ -114,7 +114,7 @@ impl UciSession {
         }
     }
 
-    fn handle_go_command(&mut self, args: &[&str]) {
+    fn handle_go_command(&mut self) {
         let mut search = Search::new(MAX_DEPTH_DEFAULT);
         match search.search(&self.position, &mut self.tt) {
             Some(best_move) => {
@@ -126,6 +126,10 @@ impl UciSession {
         }
     }
 
-    fn handle_stop_command(&mut self, args: &[&str]) {
+    fn handle_stop_command(&mut self) {
+    }
+
+    fn handle_quit_command(&mut self) {
+        std::process::exit(0);
     }
 }
