@@ -86,14 +86,17 @@ pub struct Search {
     q_cutoff_count: u32,
     tt_hit_count: u32,
     last_pv: Vec<Move>,
-    pv_table: Vec<Vec<Move>>
+    pv_table: Vec<Vec<Move>>,
+    killer_move: Vec<Option<Move>>
 }
 
 impl Search {
     pub fn new(max_depth: usize) -> Self {
         let mut pv_table = vec![];
+        let mut killer_move = vec![];
         for i in 0..max_depth {
             pv_table.push(Vec::with_capacity(max_depth - i));
+            killer_move.push(None);
         }
         Search {
             max_depth,
@@ -102,7 +105,8 @@ impl Search {
             q_cutoff_count: 0,
             tt_hit_count: 0,
             last_pv: vec![],
-            pv_table
+            pv_table,
+            killer_move
         }
     }
 
@@ -202,16 +206,21 @@ impl Search {
             return Exact(score);
         }
 
-        // move ordering: PV move from previous search first, then captures in MVV/LVA order
-        // TODO: killer move heuristic?
+        // Move ordering: killer move first if we have one, then captures in MVV/LVA order
         let mut sort_from = 0;
-        if pv_idx < self.last_pv.len() {
-            let prev_pv_move = self.last_pv[pv_idx];
-            if let Some(pv) = moves.iter().position(|&m| m == prev_pv_move) {
-                moves.swap(0, pv);
-                sort_from = 1;
+        if let Some(killer) = self.killer_move[pv_idx] {
+            if let Some(k) = moves.iter().skip(sort_from).position(|&m| m == killer) {
+                moves.swap(sort_from, k);
+                sort_from += 1;
             }
         }
+        // if sort_from == 0 && pv_idx < self.last_pv.len() {
+        //     let prev_pv_move = self.last_pv[pv_idx];
+        //     if let Some(pv) = moves.iter().skip(sort_from).position(|&m| m == prev_pv_move) {
+        //         moves.swap(sort_from, pv);
+        //         sort_from = 1;
+        //     }
+        // }
         // MVV-LVA
         moves.as_mut_slice()[sort_from..].sort_by_key(|m| (-m.capture_value(), m.piece().value()));
 
@@ -229,6 +238,7 @@ impl Search {
                     // move that led to this position
                     self.cutoff_count += 1;
                     tt.put(board, depth as u8, LowerBound(score));
+                    self.killer_move[pv_idx] = Some(move_);
                     return LowerBound(score);
                 },
                 UpperBound(_) => {
@@ -249,6 +259,7 @@ impl Search {
                 self.cutoff_count += 1;
                 let score = LowerBound(beta);
                 tt.put(board, depth as u8, score);
+                self.killer_move[pv_idx] = Some(move_);
                 return score;
             }
         }
@@ -280,6 +291,9 @@ impl Search {
             let beta = i16::MAX;
             self._search(&mut board, tt, search_depth, 0, alpha, beta);
             self.last_pv = self.pv_table[0].clone();
+            for i in 0..self.last_pv.len() {
+                self.killer_move[i] = Some(self.last_pv[i]);
+            }
             for i in 0..self.max_depth {
                 self.pv_table[i].truncate(0);
             }
