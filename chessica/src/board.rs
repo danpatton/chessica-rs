@@ -9,6 +9,7 @@ use crate::zobrist::ZobristHash;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
 use crate::errors::{FenParseError, IllegalMoveError};
+use crate::pst::PstEvaluator;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 struct MoveUndoInfo {
@@ -50,6 +51,7 @@ pub struct Board {
     full_move_number: u16,
     ep_square: Option<Square>,
     z_hash: ZobristHash,
+    pst_eval: PstEvaluator,
     move_stack: Vec<(Move, MoveUndoInfo)>,
 }
 
@@ -99,9 +101,11 @@ impl Board {
             full_move_number: 1,
             ep_square: None,
             z_hash: ZobristHash::new(),
+            pst_eval: PstEvaluator::new(),
             move_stack: vec![],
         };
         board.init_zobrist_hash();
+        board.init_pst_eval();
         board
     }
 
@@ -164,9 +168,11 @@ impl Board {
                 full_move_number,
                 ep_square,
                 z_hash: ZobristHash::new(),
+                pst_eval: PstEvaluator::new(),
                 move_stack: vec![],
             };
             board.init_zobrist_hash();
+            board.init_pst_eval();
 
             for (i, row) in rows.iter().enumerate() {
                 let rank = i as u8;
@@ -251,6 +257,45 @@ impl Board {
         }
     }
 
+    fn init_pst_eval(&mut self) {
+        for square in self.pawns & self.white_pieces {
+            self.pst_eval.add_piece(Side::White, Piece::Pawn, square);
+        }
+        for square in self.bishops & self.white_pieces {
+            self.pst_eval.add_piece(Side::White, Piece::Bishop, square);
+        }
+        for square in self.knights & self.white_pieces {
+            self.pst_eval.add_piece(Side::White, Piece::Knight, square);
+        }
+        for square in self.rooks & self.white_pieces {
+            self.pst_eval.add_piece(Side::White, Piece::Rook, square);
+        }
+        for square in self.queens & self.white_pieces {
+            self.pst_eval.add_piece(Side::White, Piece::Queen, square);
+        }
+        for square in self.kings & self.white_pieces {
+            self.pst_eval.add_piece(Side::White, Piece::King, square);
+        }
+        for square in self.pawns & self.black_pieces {
+            self.pst_eval.add_piece(Side::Black, Piece::Pawn, square);
+        }
+        for square in self.bishops & self.black_pieces {
+            self.pst_eval.add_piece(Side::Black, Piece::Bishop, square);
+        }
+        for square in self.knights & self.black_pieces {
+            self.pst_eval.add_piece(Side::Black, Piece::Knight, square);
+        }
+        for square in self.rooks & self.black_pieces {
+            self.pst_eval.add_piece(Side::Black, Piece::Rook, square);
+        }
+        for square in self.queens & self.black_pieces {
+            self.pst_eval.add_piece(Side::Black, Piece::Queen, square);
+        }
+        for square in self.kings & self.black_pieces {
+            self.pst_eval.add_piece(Side::Black, Piece::King, square);
+        }
+    }
+
     pub fn hash(&self) -> u64 {
         self.z_hash.value
     }
@@ -320,6 +365,27 @@ impl Board {
         sb.string().unwrap()
     }
 
+    pub fn get_piece_count(&self, piece: Piece) -> u32 {
+        match piece {
+            Piece::Pawn => self.pawns.count(),
+            Piece::Knight => self.knights.count(),
+            Piece::Bishop => self.bishops.count(),
+            Piece::Rook => self.rooks.count(),
+            Piece::Queen => self.queens.count(),
+            Piece::King => self.kings.count()
+        }
+    }
+
+    pub fn get_pst_negamax_score(&self) -> i16 {
+        if self.is_in_check() {
+            if self.legal_moves().is_empty() {
+                // checkmate!
+                return -30_000;
+            }
+        }
+        self.pst_eval.score(self)
+    }
+
     pub fn get_negamax_score(&self) -> i16 {
         if self.is_in_check() {
             if self.legal_moves().is_empty() {
@@ -386,6 +452,7 @@ impl Board {
             Piece::King => self.kings |= square,
         };
         self.z_hash.flip_piece(side, piece, square);
+        self.pst_eval.add_piece(side, piece, square);
     }
 
     fn remove_piece(&mut self, side: Side, piece: Piece, square: Square) {
@@ -402,6 +469,7 @@ impl Board {
             Piece::King => self.kings &= !square,
         };
         self.z_hash.flip_piece(side, piece, square);
+        self.pst_eval.remove_piece(side, piece, square);
     }
 
     fn apply_move(&mut self, side: Side, piece: Piece, from: Square, to: Square) {
@@ -687,6 +755,10 @@ impl Board {
 
     pub fn side_to_move(&self) -> Side {
         self.side_to_move
+    }
+
+    pub fn side_to_not_move(&self) -> Side {
+        self.side_to_not_move
     }
 
     pub fn is_in_check(&self) -> bool {

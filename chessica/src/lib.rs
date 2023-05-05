@@ -11,9 +11,10 @@ pub mod perft;
 pub mod square;
 
 mod bitboard;
-mod masks;
-mod zobrist;
 mod errors;
+mod masks;
+mod pst;
+mod zobrist;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
 pub enum Side {

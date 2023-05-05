@@ -7,9 +7,12 @@ use chessica::board::Board;
 use chessica::magic::{find_fancy_bishop_magics, find_fancy_rook_magics};
 use chessica::perft::{perft, perft_h, PerftHashEntry};
 use std::env;
+use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, stdin, stdout};
 use std::process::exit;
 use std::time::Instant;
+use log::LevelFilter;
+use simplelog::{CombinedLogger, Config, WriteLogger};
 use crate::uci::UciSession;
 
 fn main() {
@@ -98,6 +101,11 @@ fn main() {
             }
         }
         _ => {
+            CombinedLogger::init(
+                vec![
+                    WriteLogger::new(LevelFilter::Info, Config::default(), File::create("/home/dan/logs/chessica_engine.log").unwrap()),
+                ]
+            ).unwrap();
             let output = Box::new(BufWriter::new(stdout()));
             let mut uci_session = UciSession::new(output);
             let mut input: Box<dyn BufRead> = Box::new(BufReader::new(stdin()));

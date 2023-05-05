@@ -1,4 +1,5 @@
 use std::io::{BufRead, Write};
+use log::{error, info, warn};
 use chessica::board::Board;
 use crate::search::{Search, TranspositionTable};
 
@@ -36,10 +37,12 @@ impl UciSession {
     }
 
     fn write(&mut self, line: &str) {
+        info!(">>> {}", line);
         self.output.write(line.as_bytes()).unwrap();
     }
 
     fn handle_command(&mut self, command: &String) {
+        info!("<<< {}", command);
         let tokens = command.split(" ").collect::<Vec<&str>>();
         match tokens[0] {
             "uci" => {
@@ -71,7 +74,7 @@ impl UciSession {
                 self.handle_quit_command();
             }
             _ => {
-                self.write(format!("Unknown command: {}", tokens[0]).as_str());
+                warn!("Unknown command: {}", tokens[0]).as_str();
             }
         }
         self.output.flush().unwrap()
@@ -92,7 +95,8 @@ impl UciSession {
                 if args.len() > 1 && args[1] == "moves" {
                     for &uci_move in args[2..].iter() {
                         if let Err(_) = position.push_uci(uci_move) {
-                            // TODO: log error?
+                            let fen = position.to_fen_string();
+                            error!("Illegal move {} in position {}", uci_move, fen);
                             return;
                         }
                     }
@@ -106,7 +110,7 @@ impl UciSession {
                         self.position = position;
                     }
                     Err(_) => {
-                        // TODO: log error?
+                        error!("Failed to parse FEN: {}", fen);
                     }
                 }
             },

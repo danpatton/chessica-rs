@@ -111,7 +111,8 @@ impl Search {
 
         // TODO: work out how to use traits (?) to make eval function pluggable
 
-        board.get_negamax_score()
+        // board.get_negamax_score()
+        board.get_pst_negamax_score()
     }
 
     fn _qsearch(&mut self, board: &mut Board, alpha: i16, beta: i16) -> Score {
