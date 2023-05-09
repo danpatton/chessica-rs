@@ -84,8 +84,8 @@ impl PstMap {
             Piece::Queen => 936,
             Piece::King => 10_000
         };
-        let white_sq = (0usize..64).collect::<Vec<usize>>();
-        let black_sq = (0usize..64).map(|i| i ^ 56).collect::<Vec<usize>>();
+        let white_sq = (0usize..64).map(|i| i ^ 56).collect::<Vec<usize>>();
+        let black_sq = (0usize..64).collect::<Vec<usize>>();
         let mg = enum_map! {
             Side::White => enum_map! {
                 Piece::Pawn => white_sq.iter().map(|&s| mg_values[Piece::Pawn] + PAWN_MG[s]).collect::<Vec<i16>>(),
