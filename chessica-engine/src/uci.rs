@@ -74,7 +74,7 @@ impl UciSession {
                 self.handle_quit_command();
             }
             _ => {
-                warn!("Unknown command: {}", tokens[0]).as_str();
+                warn!("Unknown command: {}", tokens[0]);
             }
         }
         self.output.flush().unwrap()
