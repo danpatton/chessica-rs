@@ -327,4 +327,74 @@ mod tests {
             None => assert!(false)
         }
     }
+
+    #[test]
+    fn test_avoids_draw_by_threefold_repetition_when_ahead() {
+        // white is up a knight
+        let mut board = Board::parse_fen("5k2/3R4/8/3N1p1p/8/6KP/3r1P2/8 w - - 2 62").unwrap();
+
+        // white moves king from g3 to f3
+        {
+            let mut search = Search::new(5);
+            let mut tt = TranspositionTable::new(20);
+            match search.search(&board, &mut tt) {
+                Some(best_move) => {
+                    assert_eq!(best_move.to_uci_string(), "g3f3");
+                    board.push(&best_move);
+                }
+                None => assert!(false)
+            };
+        }
+
+        // black moves rook from d2 to d4
+        board.push_uci("d2d4").unwrap();
+
+        // white moves king back from f3 to g3
+        {
+            let mut search = Search::new(5);
+            let mut tt = TranspositionTable::new(20);
+            match search.search(&board, &mut tt) {
+                Some(best_move) => {
+                    assert_eq!(best_move.to_uci_string(), "f3g3");
+                    board.push(&best_move);
+                }
+                None => assert!(false)
+            };
+        }
+
+        // black moves rook back from d4 to d2
+        board.push_uci("d4d2").unwrap();
+
+        // *** we are now in the same position we started in ***
+
+        // white moves king from g3 to f3 again
+        {
+            let mut search = Search::new(5);
+            let mut tt = TranspositionTable::new(20);
+            match search.search(&board, &mut tt) {
+                Some(best_move) => {
+                    assert_eq!(best_move.to_uci_string(), "g3f3");
+                    board.push(&best_move);
+                }
+                None => assert!(false)
+            };
+        }
+
+        // black moves rook from d2 to d4 again (playing for a draw by repetition, since they are down a knight)
+        board.push_uci("d2d4").unwrap();
+
+        // if white now moves king from f3 to g3 again, black will simply move their rook from d4 back to d2, and claim draw by repetition
+        // so instead, white moves king from f3 to e2
+        {
+            let mut search = Search::new(5);
+            let mut tt = TranspositionTable::new(20);
+            match search.search(&board, &mut tt) {
+                Some(best_move) => {
+                    assert_eq!(best_move.to_uci_string(), "f3e2");
+                    board.push(&best_move);
+                }
+                None => assert!(false)
+            };
+        }
+    }
 }
