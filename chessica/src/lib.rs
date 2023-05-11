@@ -3,6 +3,7 @@ extern crate tabled;
 
 use crate::square::Square;
 use enum_map::Enum;
+use crate::board::Board;
 use crate::errors::FenCharParseError;
 
 pub mod board;
@@ -15,6 +16,7 @@ mod errors;
 mod masks;
 mod pst;
 mod zobrist;
+mod history;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Enum)]
 pub enum Side {
@@ -85,6 +87,17 @@ impl Piece {
         }
     }
 
+    pub fn pgn_spec(self) -> String {
+        match self {
+            Piece::Pawn => "",
+            Piece::Knight => "N",
+            Piece::Bishop => "B",
+            Piece::Rook => "R",
+            Piece::Queen => "Q",
+            Piece::King => "K"
+        }.to_string()
+    }
+
     pub fn to_fen_char(self, side: Side) -> char {
         let c = match self {
             Piece::Pawn => 'p',
@@ -136,6 +149,18 @@ impl RegularMove {
         }
     }
 
+    pub fn pgn_spec(&self, board: &Board) -> String {
+        let piece_spec = self.piece().pgn_spec();
+        let from_spec = match self.piece() {
+            Piece::King => "".to_string(),
+            Piece::Pawn if self.is_capture() => self.from().file_char().to_string(),
+            _ => board.get_pgn_square_disambiguation(self.piece(), self.from(), self.to())
+        };
+        let capture_spec = if self.is_capture() { "x" } else { "" };
+        let to_spec = self.to().to_string();
+        format!("{}{}{}{}", piece_spec, from_spec, capture_spec, to_spec)
+    }
+
     pub fn from(&self) -> Square {
         self._from
     }
@@ -169,6 +194,12 @@ impl EnPassantCaptureMove {
         }
     }
 
+    pub fn pgn_spec(&self) -> String {
+        let from_file_spec = self._from.file_char().to_string();
+        let to_spec = self._to.to_string();
+        format!("{}x{}", from_file_spec, to_spec)
+    }
+
     pub fn from(&self) -> Square {
         self._from
     }
@@ -198,6 +229,18 @@ impl PromotionMove {
             _from: from,
             _to: to,
             _pieces: pieces,
+        }
+    }
+
+    pub fn pgn_spec(&self) -> String {
+        let to_spec = self.to().to_string();
+        let promotion_spec = self.promotion_piece().pgn_spec();
+        if self.is_capture() {
+            let from_file_spec = self.from().file_char().to_string();
+            format!("{}x{}={}", from_file_spec, to_spec, promotion_spec)
+        }
+        else {
+            format!("{}={}", to_spec, promotion_spec)
         }
     }
 
@@ -263,6 +306,26 @@ impl Move {
 
     pub fn en_passant(from: Square, to: Square, captured_pawn: Square) -> Self {
         Move::EnPassantCapture(EnPassantCaptureMove::new(from, to, captured_pawn))
+    }
+
+    pub fn pgn_spec(&self, board: &Board) -> String {
+        let spec = match self {
+            Move::Regular(m) => m.pgn_spec(board),
+            Move::ShortCastling(_) => "O-O".to_string(),
+            Move::LongCastling(_) => "O-O-O".to_string(),
+            Move::EnPassantCapture(m) => m.pgn_spec(),
+            Move::Promotion(m) => m.pgn_spec()
+        };
+        let mut board_clone = board.clone();
+        board_clone.push(self);
+        if board_clone.is_in_check() {
+            return if board_clone.legal_moves().is_empty() {
+                format!("{}#", spec)
+            } else {
+                format!("{}+", spec)
+            }
+        }
+        spec
     }
 
     pub fn from(&self) -> Square {

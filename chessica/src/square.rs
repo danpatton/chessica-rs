@@ -38,11 +38,11 @@ impl Square {
         self.ordinal % 8
     }
 
-    fn rank_char(self) -> char {
+    pub fn rank_char(self) -> char {
         (b'1' + self.rank()) as char
     }
 
-    fn file_char(self) -> char {
+    pub fn file_char(self) -> char {
         (b'a' + self.file()) as char
     }
 

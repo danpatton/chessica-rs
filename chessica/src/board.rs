@@ -9,6 +9,7 @@ use crate::zobrist::ZobristHash;
 use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastling};
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
 use crate::errors::{FenParseError, IllegalMoveError};
+use crate::history::History;
 use crate::pst::PstEvaluator;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -16,14 +17,16 @@ struct MoveUndoInfo {
     castling_rights: u8,
     half_move_clock: u8,
     ep_square: Option<Square>,
+    is_threefold_repetition: bool
 }
 
 impl MoveUndoInfo {
-    fn new(castling_rights: u8, half_move_clock: u8, ep_square: Option<Square>) -> Self {
+    fn new(castling_rights: u8, half_move_clock: u8, ep_square: Option<Square>, is_threefold_repetition: bool) -> Self {
         MoveUndoInfo {
             castling_rights,
             half_move_clock,
             ep_square,
+            is_threefold_repetition
         }
     }
 }
@@ -53,6 +56,8 @@ pub struct Board {
     z_hash: ZobristHash,
     pst_eval: PstEvaluator,
     move_stack: Vec<(Move, MoveUndoInfo)>,
+    hash_history: History,
+    is_threefold_repetition: bool
 }
 
 impl Board {
@@ -103,9 +108,12 @@ impl Board {
             z_hash: ZobristHash::new(),
             pst_eval: PstEvaluator::new(),
             move_stack: vec![],
+            hash_history: History::new(),
+            is_threefold_repetition: false
         };
         board.init_zobrist_hash();
         board.init_pst_eval();
+        board.hash_history.push(board.hash());
         board
     }
 
@@ -170,6 +178,8 @@ impl Board {
                 z_hash: ZobristHash::new(),
                 pst_eval: PstEvaluator::new(),
                 move_stack: vec![],
+                hash_history: History::new(),
+                is_threefold_repetition: false
             };
             board.init_zobrist_hash();
             board.init_pst_eval();
@@ -195,6 +205,7 @@ impl Board {
                 }
             }
 
+            board.hash_history.push(board.hash());
             return Ok(board);
         }
         Err(FenParseError)
@@ -300,6 +311,10 @@ impl Board {
         self.z_hash.value
     }
 
+    pub fn full_move_number(&self) -> u16 {
+        self.full_move_number
+    }
+
     pub fn to_fen_string(&self) -> String {
         let mut sb = Builder::default();
         for rank in (0u8..8).rev() {
@@ -365,6 +380,36 @@ impl Board {
         sb.string().unwrap()
     }
 
+    pub fn get_pgn_square_disambiguation(&self, piece: Piece, from: Square, to: Square) -> String {
+        let legal_moves = self.legal_moves();
+        let potentially_ambiguous_moves = legal_moves
+            .iter()
+            .filter(|&m| m.piece() == piece && m.to() == to && m.from() != from)
+            .collect::<Vec<&Move>>();
+
+        if potentially_ambiguous_moves.is_empty() {
+            return "".to_string();
+        }
+
+        let mut needs_explicit_file = false;
+        let mut needs_explicit_rank = false;
+
+        if from.file() != to.file() && potentially_ambiguous_moves.iter().all(|&m| m.from().file() != from.file()) {
+            needs_explicit_file = true;
+        }
+        else if from.rank() != to.rank() && potentially_ambiguous_moves.iter().all(|&m| m.from().rank() != from.rank()) {
+            needs_explicit_rank = true;
+        }
+        else {
+            needs_explicit_file = true;
+            needs_explicit_rank = true;
+        }
+
+        let file_spec = if needs_explicit_file { from.file_char().to_string() } else { "".to_string() };
+        let rank_spec = if needs_explicit_rank { from.rank_char().to_string() } else { "".to_string() };
+        format!("{}{}", file_spec, rank_spec)
+    }
+
     pub fn get_piece_count(&self, piece: Piece) -> u32 {
         match piece {
             Piece::Pawn => self.pawns.count(),
@@ -377,6 +422,9 @@ impl Board {
     }
 
     pub fn get_pst_negamax_score(&self) -> i16 {
+        if self.is_threefold_repetition || self.half_move_clock >= 100 {
+            return 0;
+        }
         if self.is_in_check() {
             if self.legal_moves().is_empty() {
                 // checkmate!
@@ -387,6 +435,9 @@ impl Board {
     }
 
     pub fn get_negamax_score(&self) -> i16 {
+        if self.is_threefold_repetition || self.half_move_clock >= 100 {
+            return 0;
+        }
         if self.is_in_check() {
             if self.legal_moves().is_empty() {
                 // checkmate!
@@ -577,7 +628,7 @@ impl Board {
 
     pub fn push(&mut self, move_: &Move) {
         let move_undo_info =
-            MoveUndoInfo::new(self.castling_rights, self.half_move_clock, self.ep_square);
+            MoveUndoInfo::new(self.castling_rights, self.half_move_clock, self.ep_square, self.is_threefold_repetition);
         if let Some(ep_square) = self.ep_square {
             self.z_hash.flip_ep_file(ep_square.file());
         }
@@ -614,10 +665,15 @@ impl Board {
         if self.side_to_move == Side::White {
             self.full_move_number += 1;
         }
+        let hash_count = self.hash_history.push(self.hash());
+        if hash_count >= 3 {
+            self.is_threefold_repetition = true;
+        }
     }
 
     pub fn pop(&mut self) {
         if let Some((move_, move_undo_info)) = self.move_stack.pop() {
+            self.hash_history.pop(self.hash());
             match move_ {
                 Regular(m) => self.undo_regular_move(&m),
                 ShortCastling(_side) => self.undo_short_castling_move(),
@@ -654,6 +710,7 @@ impl Board {
             if self.side_to_move == Side::Black {
                 self.full_move_number -= 1;
             }
+            self.is_threefold_repetition = move_undo_info.is_threefold_repetition;
         }
     }
 
@@ -759,6 +816,14 @@ impl Board {
 
     pub fn side_to_not_move(&self) -> Side {
         self.side_to_not_move
+    }
+
+    pub fn is_draw_by_threefold_repetition(&self) -> bool {
+        self.is_threefold_repetition
+    }
+
+    pub fn is_draw_by_fifty_move_rule(&self) -> bool {
+        self.half_move_clock >= 100
     }
 
     pub fn is_in_check(&self) -> bool {
