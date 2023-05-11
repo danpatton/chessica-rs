@@ -1,0 +1,12 @@
+[package]
+name = "chessica-api"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+chessica = { path = "../chessica" }
+chessica-engine = { path = "../chessica-engine"}
+libc = "0.2.144"
