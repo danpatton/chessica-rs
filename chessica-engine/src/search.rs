@@ -65,8 +65,8 @@ impl TranspositionTable {
             if entry.depth >= depth && entry.position_hash == position.hash() {
                 return match entry.score {
                     Exact(_) => Some(entry.score),
-                    UpperBound(score) if score < alpha => Some(entry.score),
-                    LowerBound(score) if score > beta => Some(entry.score),
+                    UpperBound(score) if score <= alpha => Some(entry.score),
+                    LowerBound(score) if score >= beta => Some(entry.score),
                     _ => None
                 }
             }
