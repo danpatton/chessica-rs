@@ -30,22 +30,21 @@ struct TranspositionTableEntry {
 }
 
 pub struct TranspositionTable {
-    idx_mask: u64,
+    size: usize,
     entries: Vec<Option<TranspositionTableEntry>>
 }
 
 impl TranspositionTable {
     pub fn new(key_bits: u8) -> TranspositionTable {
-        let size: usize = 1 << key_bits;
-        let idx_mask: u64 = (size - 1) as u64;
+        let size: usize = 43 + (1 << key_bits);
         TranspositionTable {
-            idx_mask,
+            size,
             entries: vec![None; size as usize]
         }
     }
 
     fn put(&mut self, position: &Board, depth: u8, score: Score) {
-        let idx = (position.hash() & self.idx_mask) as usize;
+        let idx = position.hash() as usize % self.size;
         if let Some(existing_entry) = &self.entries[idx] {
             if existing_entry.position_hash == position.hash() && depth < existing_entry.depth {
                 return;
@@ -60,7 +59,7 @@ impl TranspositionTable {
     }
 
     fn get(&self, position: &Board, depth: u8, alpha: i16, beta: i16) -> Option<Score> {
-        let idx = (position.hash() & self.idx_mask) as usize;
+        let idx = position.hash() as usize % self.size;
         if let Some(entry) = self.entries[idx] {
             if entry.depth >= depth && entry.position_hash == position.hash() {
                 return match entry.score {
