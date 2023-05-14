@@ -4,8 +4,7 @@ use chessica_engine::search::{Search, TranspositionTable};
 
 pub fn selfplay() {
     let mut board = Board::starting_position();
-    // let mut tt = TranspositionTable::new(24);
-    let mut tt = TranspositionTable::null();
+    let mut tt = TranspositionTable::new(24);
     loop {
         if board.is_draw_by_threefold_repetition() {
             if board.side_to_move() == Side::Black {
