@@ -20,6 +20,7 @@ pub fn selfplay() {
             println!("1/2-1/2 {{draw by fifty move rule}}");
             break;
         }
+        tt.clear();
         let mut search = Search::new(5);
         match search.search(&board, &mut tt) {
             Some(move_) => {
