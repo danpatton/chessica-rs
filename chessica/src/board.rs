@@ -897,6 +897,7 @@ impl Board {
 
         let mut score = move_.capture_value();
         let mut piece_on_square = move_.piece();
+        all_pieces &= !move_.from();
 
         loop {
             if _pop_attacker(to, &mut enemy_pawns, &mut all_pieces, None) {
