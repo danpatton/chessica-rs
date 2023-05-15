@@ -23,15 +23,33 @@ impl ops::Neg for Score {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct TranspositionTableEntry {
+enum TTScore {
+    Alpha(i16),
+    Beta(i16, Move),
+    Pv(i16, Move),
+    None
+}
+
+#[derive(Debug, Copy, Clone)]
+struct TTEntry {
     position_hash: u64,
     depth: u8,
-    score: Score
+    score: TTScore,
+}
+
+impl TTEntry {
+    fn empty() -> Self {
+        TTEntry {
+            position_hash: 0,
+            depth: 0,
+            score: TTScore::None
+        }
+    }
 }
 
 pub struct TranspositionTable {
     size: usize,
-    entries: Vec<Option<TranspositionTableEntry>>
+    entries: Vec<TTEntry>
 }
 
 impl TranspositionTable {
@@ -39,42 +57,62 @@ impl TranspositionTable {
         let size: usize = 43 + (1 << key_bits);
         TranspositionTable {
             size,
-            entries: vec![None; size as usize]
+            entries: vec![TTEntry::empty(); size as usize]
         }
     }
 
-    fn put(&mut self, position: &Board, depth: u8, score: Score) {
+    fn put(&mut self, position: &Board, depth: u8, score: TTScore) {
         let idx = position.hash() as usize % self.size;
-        if let Some(existing_entry) = &self.entries[idx] {
-            if existing_entry.position_hash == position.hash() && depth < existing_entry.depth {
-                return;
-            }
+        let entry = &mut self.entries[idx];
+        if entry.position_hash == position.hash() && depth < entry.depth {
+            return;
         }
-        let entry = TranspositionTableEntry {
-            position_hash: position.hash(),
-            depth,
-            score
-        };
-        self.entries[idx] = Some(entry);
+        entry.position_hash = position.hash();
+        entry.depth = depth;
+        entry.score = score;
     }
 
     fn get(&self, position: &Board, depth: u8, alpha: i16, beta: i16) -> Option<Score> {
         let idx = position.hash() as usize % self.size;
-        if let Some(entry) = self.entries[idx] {
-            if entry.depth >= depth && entry.position_hash == position.hash() {
-                return match entry.score {
-                    Exact(_) => Some(entry.score),
-                    UpperBound(score) if score <= alpha => Some(entry.score),
-                    LowerBound(score) if score >= beta => Some(entry.score),
-                    _ => None
-                }
+        let entry = &self.entries[idx];
+        if entry.depth >= depth && entry.position_hash == position.hash() {
+            return match entry.score {
+                TTScore::Pv(score, _) => Some(Exact(score)),
+                TTScore::Alpha(score) if score <= alpha => Some(UpperBound(score)),
+                TTScore::Beta(score, _) if score >= beta => Some(LowerBound(score)),
+                _ => None
+            }
+        }
+        None
+    }
+
+    fn get_pv_move(&self, position: &Board) -> Option<Move> {
+        let idx = position.hash() as usize % self.size;
+        let entry = &self.entries[idx];
+        if entry.position_hash == position.hash() {
+            return match entry.score {
+                TTScore::Pv(_, move_) => Some(move_),
+                _ => None
+            }
+        }
+        None
+    }
+
+    fn get_move(&self, position: &Board) -> Option<Move> {
+        let idx = position.hash() as usize % self.size;
+        let entry = &self.entries[idx];
+        if entry.position_hash == position.hash() {
+            return match entry.score {
+                TTScore::Pv(_, move_) => Some(move_),
+                TTScore::Beta(_, move_) => Some(move_),
+                _ => None
             }
         }
         None
     }
 
     pub fn clear(&mut self) {
-        self.entries.fill(None);
+        self.entries.fill(TTEntry::empty());
     }
 }
 
@@ -192,6 +230,9 @@ impl Search {
         if let Some(tt_score) = tt.get(board, depth as u8, alpha, beta) {
             self.tt_hit_count += 1;
             self.pv_table[pv_idx].truncate(0);
+            if let Some(pv_move) = tt.get_pv_move(board) {
+                self.pv_table[pv_idx].push(pv_move);
+            }
             return tt_score;
         }
 
@@ -202,14 +243,24 @@ impl Search {
             return Exact(score);
         }
 
-        // move ordering: PV move from previous search first, then captures in MVV/LVA order
+        // move ordering: hash move first, then PV move from previous search, then captures in MVV/LVA order
         // TODO: killer move heuristic?
         let mut sort_from = 0;
+        if let Some(hash_move) = tt.get_move(board) {
+            if let Some(h) = moves.iter().skip(sort_from).position(|&m| m == hash_move) {
+                if h != sort_from {
+                    moves.swap(sort_from, h);
+                    sort_from += 1;
+                }
+            }
+        }
         if pv_idx < self.last_pv.len() {
             let prev_pv_move = self.last_pv[pv_idx];
-            if let Some(pv) = moves.iter().position(|&m| m == prev_pv_move) {
-                moves.swap(0, pv);
-                sort_from = 1;
+            if let Some(pv) = moves.iter().skip(sort_from).position(|&m| m == prev_pv_move) {
+                if pv != sort_from {
+                    moves.swap(sort_from, pv);
+                    sort_from += 1;
+                }
             }
         }
         // MVV-LVA
@@ -228,7 +279,7 @@ impl Search {
                     // will never get the chance to play it since our opponent will never make the
                     // move that led to this position
                     self.cutoff_count += 1;
-                    tt.put(board, depth as u8, LowerBound(score));
+                    tt.put(board, depth as u8, TTScore::Beta(score, move_));
                     return LowerBound(score);
                 },
                 UpperBound(_) => {
@@ -248,7 +299,7 @@ impl Search {
             if alpha >= beta {
                 self.cutoff_count += 1;
                 let score = LowerBound(beta);
-                tt.put(board, depth as u8, score);
+                tt.put(board, depth as u8, TTScore::Beta(beta, move_));
                 return score;
             }
         }
@@ -262,13 +313,14 @@ impl Search {
                 let pv_tail = &tail[0];
                 pv.extend(pv_tail.iter());
             }
+            tt.put(board, depth as u8, TTScore::Pv(alpha, pv_move));
             Exact(alpha)
         }
         else {
+            tt.put(board, depth as u8, TTScore::Alpha(alpha));
             UpperBound(alpha)
         };
 
-        tt.put(board, depth as u8, score);
         score
     }
 
