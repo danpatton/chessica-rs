@@ -28,6 +28,7 @@ steps:
   displayName: NuGet pack
   inputs:
     command: pack
+    arguments: '--configuration Release'
     packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
     packDestination: '$(Build.ArtifactStagingDirectory)'
 - task: NuGetAuthenticate@0
