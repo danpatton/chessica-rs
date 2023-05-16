@@ -12,13 +12,13 @@ pool:
 resources:
   containers:
   - container: rustbuild
-    image: debian:buster
+    image: ubuntu:18.04
 
 variables:
   BuildConfiguration: 'Release'
 
 steps:
-- script: sudo apt-get update && apt install -y curl
+- script: sudo apt-get update && apt-get install -y curl
   target: rustbuild
   displayName: Init container
 - script: |
