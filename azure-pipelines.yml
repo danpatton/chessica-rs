@@ -9,6 +9,9 @@ trigger:
 pool:
   vmImage: ubuntu-20.04
 
+variables:
+  BuildConfiguration: 'Release'
+
 steps:
 - script: |
     curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -22,20 +25,16 @@ steps:
   displayName: Dotnet build
   inputs:
     command: 'build'
-    arguments: '--configuration Release'
     projects: 'chessica-api/dotnet/ChessicaRustApi.csproj'
-- task: NuGetCommand@2
-  displayName: NuGet pack
+- task: DotNetCoreCLI@2
+  displayName: Dotnet pack
   inputs:
     command: pack
-    arguments: '--configuration Release'
     packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
-    packDestination: '$(Build.ArtifactStagingDirectory)'
 - task: NuGetAuthenticate@0
   displayName: NuGet authenticate
-- task: NuGetCommand@2
-  displayName: NuGet push
+- task: DotNetCoreCLI@2
+  displayName: Dotnet push
   inputs:
     command: push
     publishVstsFeed: 'chessica/private-nuget'
-    allowPackageConflicts: true
