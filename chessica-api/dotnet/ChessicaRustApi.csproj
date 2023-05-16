@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <PackageId>ChessicaRustApi</PackageId>
+        <Version>0.1.0-alpha</Version>
+        <Authors>Dan Patton</Authors>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Content Include="../../target/$(Configuration.toLower())/libchessica_api.so" Link="runtimes/linux-x64/native/libchessica_api.so">
+          <PackagePath>runtimes/linux-x64/native</PackagePath>
+      </Content>
+    </ItemGroup>
+
+</Project>

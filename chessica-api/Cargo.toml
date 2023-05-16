@@ -1,5 +1,7 @@
 [package]
 name = "chessica-api"
+description = "Chessica Rust Api"
+authors = ["Dan Patton <patton.dan@gmail.com>"]
 version = "0.1.0"
 edition = "2021"
 
