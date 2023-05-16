@@ -18,8 +18,13 @@ steps:
   displayName: Cargo build
 - script: cargo test --all
   displayName: Cargo test
+- task: DotNetCoreCLI@2
+  displayName: Dotnet build
+  inputs:
+    command: 'build'
+    projects: 'chessica-api/dotnet/ChessicaRustApi.csproj'
 - task: NuGetCommand@2
-  displayName: Nuget pack
+  displayName: NuGet pack
   inputs:
     command: pack
     packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
