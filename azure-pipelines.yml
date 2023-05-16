@@ -12,15 +12,12 @@ pool:
 resources:
   containers:
   - container: rustbuild
-    image: ubuntu:18.04
+    image: tkhoa2711/debian-curl:buster-slim
 
 variables:
   BuildConfiguration: 'Release'
 
 steps:
-- script: sudo apt-get update && apt-get install -y curl
-  target: rustbuild
-  displayName: Init container
 - script: |
     curl https://sh.rustup.rs -sSf | sh -s -- -y
     echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"      
