@@ -9,33 +9,46 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
-container: ubuntu:18.04
+resources:
+  containers:
+  - container: rustbuild
+    image: debian:buster
 
 variables:
   BuildConfiguration: 'Release'
 
 steps:
+- script: apt-get update && apt install -y curl
+  target: rustbuild
+  displayName: Init container
 - script: |
     curl https://sh.rustup.rs -sSf | sh -s -- -y
     echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"      
+  target: rustbuild
   displayName: Install rust
 - script: cargo build --release --all
+  target: rustbuild
   displayName: Cargo build
 - script: cargo test --release --all
+  target: rustbuild
   displayName: Cargo test
 - task: DotNetCoreCLI@2
+  target: host
   displayName: Dotnet build
   inputs:
     command: 'build'
     projects: 'chessica-api/dotnet/ChessicaRustApi.csproj'
 - task: DotNetCoreCLI@2
+  target: host
   displayName: Dotnet pack
   inputs:
     command: pack
     packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
 - task: NuGetAuthenticate@0
+  target: host
   displayName: NuGet authenticate
 - task: NuGetCommand@2
+  target: host
   displayName: NuGet push
   inputs:
     command: push
