@@ -18,3 +18,17 @@ steps:
   displayName: Cargo build
 - script: cargo test --all
   displayName: Cargo test
+- task: NuGetCommand@2
+  displayName: Nuget pack
+  inputs:
+    command: pack
+    packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
+    packDestination: '$(Build.ArtifactStagingDirectory)'
+- task: NuGetAuthenticate@0
+  displayName: NuGet authenticate
+- task: NuGetCommand@2
+  displayName: NuGet push
+  inputs:
+    command: push
+    publishVstsFeed: 'chessica/private-nuget'
+    allowPackageConflicts: true
