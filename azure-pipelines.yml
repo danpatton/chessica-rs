@@ -14,14 +14,15 @@ steps:
     curl https://sh.rustup.rs -sSf | sh -s -- -y
     echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"      
   displayName: Install rust
-- script: cargo build --all
+- script: cargo build --release --all
   displayName: Cargo build
-- script: cargo test --all
+- script: cargo test --release --all
   displayName: Cargo test
 - task: DotNetCoreCLI@2
   displayName: Dotnet build
   inputs:
     command: 'build'
+    arguments: '--configuration Release'
     projects: 'chessica-api/dotnet/ChessicaRustApi.csproj'
 - task: NuGetCommand@2
   displayName: NuGet pack
