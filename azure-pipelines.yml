@@ -18,7 +18,7 @@ variables:
   BuildConfiguration: 'Release'
 
 steps:
-- script: apt-get update && apt install -y curl
+- script: sudo apt-get update && apt install -y curl
   target: rustbuild
   displayName: Init container
 - script: |
