@@ -33,8 +33,9 @@ steps:
     packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
 - task: NuGetAuthenticate@0
   displayName: NuGet authenticate
-- task: DotNetCoreCLI@2
-  displayName: Dotnet push
+- task: NuGetCommand@2
+  displayName: NuGet push
   inputs:
     command: push
     publishVstsFeed: 'chessica/private-nuget'
+    allowPackageConflicts: true
