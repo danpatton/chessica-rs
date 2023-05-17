@@ -1,0 +1,58 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+name: $(MajorMinorVersion).$(PatchVersion)
+
+resources:
+  containers:
+  - container: rustbuild
+    image: gcc:9-buster
+
+variables:
+  BuildConfiguration: 'Release'
+  MajorMinorVersion: 0.1
+  PatchVersion: $[counter(variables['majorMinorVersion'], 0)]
+
+steps:
+- script: |
+    curl https://sh.rustup.rs -sSf | sh -s -- -y
+    echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+  target: rustbuild
+  displayName: Install rust
+- script: cargo build --release --all
+  target: rustbuild
+  displayName: Cargo build
+- script: cargo test --release --all
+  target: rustbuild
+  displayName: Cargo test
+- task: DotNetCoreCLI@2
+  target: host
+  displayName: Dotnet build
+  inputs:
+    command: 'build'
+    projects: 'chessica-api/dotnet/ChessicaRustApi.csproj'
+- task: DotNetCoreCLI@2
+  target: host
+  displayName: Dotnet pack
+  inputs:
+    command: pack
+    packagesToPack: 'chessica-api/dotnet/ChessicaRustApi.csproj'
+    versioningScheme: byBuildNumber
+
+- task: NuGetAuthenticate@0
+  target: host
+  displayName: NuGet authenticate
+- task: DotNetCoreCLI@2
+  target: host
+  displayName: Dotnet push
+  inputs:
+    command: push
+    publishVstsFeed: 'chessica/private-nuget'
