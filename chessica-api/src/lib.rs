@@ -2,57 +2,74 @@ extern crate chessica;
 extern crate chessica_engine;
 extern crate libc;
 
-use libc::size_t;
-use std::slice;
+use libc::c_char;
+use std::ffi::{CStr, CString};
+use std::ptr::null_mut;
 use chessica::board::Board;
 use chessica_engine::search::{Search, TranspositionTable};
 
-unsafe fn to_string(buf: *const u8, len: size_t) -> String {
-    assert!(!buf.is_null());
-    let slice = slice::from_raw_parts(buf, len as usize);
-    String::from_utf8_unchecked(slice.to_vec())
-}
-
 #[no_mangle]
 pub extern fn get_best_move(
-    max_depth: u32,
-    tt_key_bits: u32,
-    initial_fen_buf: *const u8,
-    initial_fen_len: size_t,
-    uci_moves_buf: *const u8,
-    uci_moves_len: size_t,
-    best_move_buf: *mut u8,
-    best_move_len: size_t
-) -> u32 {
+    initial_fen: *const c_char,
+    uci_moves: *const c_char,
+    max_depth: u8,
+    tt_key_bits: u8
+) -> *mut c_char {
+    if initial_fen.is_null() || uci_moves.is_null() {
+        return null_mut();
+    }
     let initial_fen = unsafe {
-        to_string(initial_fen_buf, initial_fen_len)
+        CStr::from_ptr(initial_fen)
     };
-    let mut board = Board::parse_fen(&initial_fen).unwrap();
-    if uci_moves_len > 0 {
-        let uci_moves = unsafe {
-            to_string(uci_moves_buf, uci_moves_len)
-        };
-        for uci_move in uci_moves.split(",") {
+    let initial_fen_str = initial_fen.to_str().unwrap();
+    let uci_moves = unsafe {
+        CStr::from_ptr(uci_moves)
+    };
+    let uci_moves_str = uci_moves.to_str().unwrap();
+    let mut board = Board::parse_fen(initial_fen_str).unwrap();
+    if uci_moves_str.len() > 0 {
+        for uci_move in uci_moves_str.split(",") {
             if let Err(_) = board.push_uci(uci_move) {
-                return 0;
+                return null_mut();
             }
         }
     }
-    let mut tt = TranspositionTable::new(tt_key_bits as u8);
+    let mut tt = TranspositionTable::new(tt_key_bits);
     let mut search = Search::new(max_depth as usize);
-    match  search.search(&board, &mut tt) {
+    match search.search(&board, &mut tt) {
         Some(best_move) => {
-            let best_move_uci = best_move.to_uci_string();
-            let best_move_slice = unsafe {
-                assert!(!best_move_buf.is_null());
-                slice::from_raw_parts_mut(best_move_buf, best_move_len as usize)
-            };
-            let best_move_chars = best_move_uci.as_bytes();
-            for i in 0..best_move_chars.len() {
-                best_move_slice[i] = best_move_chars[i];
-            }
-            best_move_chars.len() as u32
+            let result = best_move.to_uci_string();
+            let c_str_result  = CString::new(result).unwrap();
+            c_str_result.into_raw()
         },
-        None => 0
+        None => null_mut()
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn free_string(s: *mut c_char) {
+    if s.is_null() {
+        return;
+    }
+    unsafe {
+        CString::from_raw(s)
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_best_move() {
+        let initial_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
+        let uci_moves = "".to_string();
+        let initial_fen_cstr = CString::new(initial_fen).unwrap();
+        let uci_moves_cstr = CString::new(uci_moves).unwrap();
+        let best_move_ptr = get_best_move(initial_fen_cstr.into_raw(), uci_moves_cstr.into_raw(),  5, 20);
+        let best_move_str = unsafe {
+            CStr::from_ptr(best_move_ptr)
+        }.to_str().unwrap();
+        assert_eq!(best_move_str, "g1f3");
     }
 }
