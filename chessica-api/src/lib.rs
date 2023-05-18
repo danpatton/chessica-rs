@@ -27,13 +27,15 @@ pub extern fn get_best_move(
     let initial_fen = unsafe {
         to_string(initial_fen_buf, initial_fen_len)
     };
-    let uci_moves = unsafe {
-        to_string(uci_moves_buf, uci_moves_len)
-    };
     let mut board = Board::parse_fen(&initial_fen).unwrap();
-    for uci_move in uci_moves.split(",") {
-        if let Err(_) = board.push_uci(uci_move) {
-            return 0;
+    if uci_moves_len > 0 {
+        let uci_moves = unsafe {
+            to_string(uci_moves_buf, uci_moves_len)
+        };
+        for uci_move in uci_moves.split(",") {
+            if let Err(_) = board.push_uci(uci_move) {
+                return 0;
+            }
         }
     }
     let mut tt = TranspositionTable::new(tt_key_bits as u8);
