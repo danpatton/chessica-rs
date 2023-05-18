@@ -3,39 +3,50 @@ using System.Text;
 
 namespace Chessica.Rust;
 
-public class ChessicaRustApi
+public static class ChessicaRustApi
 {
-    [DllImport("chessica_api", EntryPoint = "get_best_move")]
-    private static extern int GetBestMove(
-        uint maxDepth,
-        uint ttKeyBits,
-        byte[] initialFenBuf,
-        UIntPtr initialFenLen,
-        byte[] uciMovesBuf,
-        UIntPtr uciMovesLen,
-        byte[] bestMoveBuf,
-        UIntPtr bestMoveLen);
+    [DllImport("chessica_api", EntryPoint="get_best_move")]
+    internal static extern StringHandle GetBestMove(string initialFen, string uciMoves, uint maxDepth, uint ttKeyBits);
 
-    public static bool TryGetBestMove(uint maxDepth, uint ttKeyBits, string inputFen, IEnumerable<string> uciMoves, out string? bestMove)
+    [DllImport("chessica_api", EntryPoint="free_string")]
+    internal static extern void FreeString(IntPtr s);
+
+    public static bool TryGetBestMove(string initialFen, IEnumerable<string> uciMoves, uint maxDepth, uint ttKeyBits, out string? bestMove)
     {
-        var initialFenBuf = Encoding.UTF8.GetBytes(inputFen);
-        var uciMovesBuf = Encoding.UTF8.GetBytes(string.Join(",", uciMoves));
-        var bestMoveBuf = new byte[16];
-        var bestMoveLen = GetBestMove(
-            maxDepth,
-            ttKeyBits,
-            initialFenBuf,
-            (UIntPtr)initialFenBuf.Length,
-            uciMovesBuf,
-            (UIntPtr)uciMovesBuf.Length,
-            bestMoveBuf,
-            (UIntPtr)bestMoveBuf.Length);
-        if (bestMoveLen == 0)
+        var uciMovesStr = string.Join(",", uciMoves);
+        using var bestMoveHandle = ChessicaRustApi.GetBestMove(initialFen, uciMovesStr, maxDepth, ttKeyBits);
+        if (bestMoveHandle.IsInvalid)
         {
             bestMove = null;
             return false;
         }
-        bestMove = Encoding.UTF8.GetString(bestMoveBuf.AsSpan(0, bestMoveLen));
+        bestMove = bestMoveHandle.AsString();
+        return true;
+    }
+}
+
+internal class StringHandle : SafeHandle
+{
+    public StringHandle() : base(IntPtr.Zero, true) {}
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    public string AsString()
+    {
+        int len = 0;
+        while (Marshal.ReadByte(handle, len) != 0) { ++len; }
+        byte[] buffer = new byte[len];
+        Marshal.Copy(handle, buffer, 0, buffer.Length);
+        return Encoding.UTF8.GetString(buffer);
+    }
+
+    protected override bool ReleaseHandle()
+    {
+        if (!IsInvalid)
+        {
+            ChessicaRustApi.FreeString(handle);
+        }
+
         return true;
     }
 }
