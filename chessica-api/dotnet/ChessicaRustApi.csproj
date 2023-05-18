@@ -5,7 +5,6 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <PackageId>ChessicaRustApi</PackageId>
-        <Version>0.1.0-alpha</Version>
         <Authors>Dan Patton</Authors>
     </PropertyGroup>
 

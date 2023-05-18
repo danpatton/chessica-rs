@@ -7,14 +7,35 @@ use std::slice;
 use chessica::board::Board;
 use chessica_engine::search::{Search, TranspositionTable};
 
+unsafe fn to_string(buf: *const u8, len: size_t) -> String {
+    assert!(!buf.is_null());
+    let slice = slice::from_raw_parts(buf, len as usize);
+    String::from_utf8_unchecked(slice.to_vec())
+}
+
 #[no_mangle]
-pub extern fn get_best_move(max_depth: u32, tt_key_bits: u32, fen_buf: *const u8, fen_len: size_t, best_move_buf: *mut u8, best_move_len: size_t) -> u32 {
-    let fen = unsafe {
-        assert!(!fen_buf.is_null());
-        let fen_slice = slice::from_raw_parts(fen_buf, fen_len as usize);
-        String::from_utf8_unchecked(fen_slice.to_vec())
+pub extern fn get_best_move(
+    max_depth: u32,
+    tt_key_bits: u32,
+    initial_fen_buf: *const u8,
+    initial_fen_len: size_t,
+    uci_moves_buf: *const u8,
+    uci_moves_len: size_t,
+    best_move_buf: *mut u8,
+    best_move_len: size_t
+) -> u32 {
+    let initial_fen = unsafe {
+        to_string(initial_fen_buf, initial_fen_len)
     };
-    let board = Board::parse_fen(&fen).unwrap();
+    let uci_moves = unsafe {
+        to_string(uci_moves_buf, uci_moves_len)
+    };
+    let mut board = Board::parse_fen(&initial_fen).unwrap();
+    for uci_move in uci_moves.split(",") {
+        if let Err(_) = board.push_uci(uci_move) {
+            return 0;
+        }
+    }
     let mut tt = TranspositionTable::new(tt_key_bits as u8);
     let mut search = Search::new(max_depth as usize);
     match  search.search(&board, &mut tt) {
