@@ -10,6 +10,7 @@ use crate::Move::{EnPassantCapture, LongCastling, Promotion, Regular, ShortCastl
 use crate::{sq, EnPassantCaptureMove, Move, Piece, PromotionMove, RegularMove, Side};
 use crate::errors::{FenParseError, IllegalMoveError};
 use crate::history::History;
+use crate::masks::{BLACK_PASSED_PAWN_ZONE, WHITE_PASSED_PAWN_ZONE};
 use crate::pst::PstEvaluator;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -17,16 +18,18 @@ struct MoveUndoInfo {
     castling_rights: u8,
     half_move_clock: u8,
     ep_square: Option<Square>,
-    is_threefold_repetition: bool
+    is_threefold_repetition: bool,
+    passed_pawns: BitBoard
 }
 
 impl MoveUndoInfo {
-    fn new(castling_rights: u8, half_move_clock: u8, ep_square: Option<Square>, is_threefold_repetition: bool) -> Self {
+    fn new(castling_rights: u8, half_move_clock: u8, ep_square: Option<Square>, is_threefold_repetition: bool, passed_pawns: BitBoard) -> Self {
         MoveUndoInfo {
             castling_rights,
             half_move_clock,
             ep_square,
-            is_threefold_repetition
+            is_threefold_repetition,
+            passed_pawns
         }
     }
 }
@@ -49,6 +52,7 @@ pub struct Board {
     rooks: BitBoard,
     queens: BitBoard,
     kings: BitBoard,
+    passed_pawns: BitBoard,
     castling_rights: u8,
     half_move_clock: u8,
     full_move_number: u16,
@@ -101,6 +105,7 @@ impl Board {
             rooks: BitBoard::from_squares(&[sq!(a1), sq!(h1), sq!(a8), sq!(h8)]),
             queens: BitBoard::from_squares(&[sq!(d1), sq!(d8)]),
             kings: BitBoard::from_squares(&[sq!(e1), sq!(e8)]),
+            passed_pawns: BitBoard::empty(),
             castling_rights: 0xf,
             half_move_clock: 0,
             full_move_number: 1,
@@ -171,6 +176,7 @@ impl Board {
                 rooks: BitBoard::empty(),
                 queens: BitBoard::empty(),
                 kings: BitBoard::empty(),
+                passed_pawns: BitBoard::empty(),
                 castling_rights,
                 half_move_clock,
                 full_move_number,
@@ -206,6 +212,7 @@ impl Board {
             }
 
             board.hash_history.push(board.hash());
+            board.update_passed_pawns();
             return Ok(board);
         }
         Err(FenParseError)
@@ -626,9 +633,44 @@ impl Board {
         }
     }
 
+    pub fn side_to_move_has_passed_pawns(&self) -> bool {
+        let passed_pawns = match self.side_to_move {
+            Side::White => self.white_pieces,
+            Side::Black => self.black_pieces
+        } & self.passed_pawns;
+        passed_pawns.any()
+    }
+
+    pub fn is_passed_pawn(&self, square: Square) -> bool {
+        self.passed_pawns.is_occupied(square)
+    }
+
+    pub fn get_passed_pawns(&self) -> BitBoard {
+        self.passed_pawns
+    }
+
+    fn update_passed_pawns(&mut self) {
+        let white_pawns = self.pawns & self.white_pieces;
+        let black_pawns = self.pawns & self.black_pieces;
+        let mut passed_pawns = BitBoard::empty();
+        for white_pawn in white_pawns {
+            let mask = BitBoard::new(WHITE_PASSED_PAWN_ZONE[white_pawn.ordinal as usize]);
+            if !(black_pawns & mask).any() {
+                passed_pawns |= white_pawn;
+            }
+        }
+        for black_pawn in black_pawns {
+            let mask = BitBoard::new(BLACK_PASSED_PAWN_ZONE[black_pawn.ordinal as usize]);
+            if !(white_pawns & mask).any() {
+                passed_pawns |= black_pawn;
+            }
+        }
+        self.passed_pawns = passed_pawns;
+    }
+
     pub fn push(&mut self, move_: &Move) {
         let move_undo_info =
-            MoveUndoInfo::new(self.castling_rights, self.half_move_clock, self.ep_square, self.is_threefold_repetition);
+            MoveUndoInfo::new(self.castling_rights, self.half_move_clock, self.ep_square, self.is_threefold_repetition, self.passed_pawns);
         if let Some(ep_square) = self.ep_square {
             self.z_hash.flip_ep_file(ep_square.file());
         }
@@ -659,6 +701,9 @@ impl Board {
                 self.half_move_clock = 0;
             }
         };
+        if move_.is_pawn_involved() {
+            self.update_passed_pawns();
+        }
         self.move_stack.push((move_.clone(), move_undo_info));
         std::mem::swap(&mut self.side_to_move, &mut self.side_to_not_move);
         self.z_hash.flip_black_to_move();
@@ -711,6 +756,7 @@ impl Board {
                 self.full_move_number -= 1;
             }
             self.is_threefold_repetition = move_undo_info.is_threefold_repetition;
+            self.passed_pawns = move_undo_info.passed_pawns;
         }
     }
 

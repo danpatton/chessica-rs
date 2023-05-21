@@ -183,6 +183,10 @@ impl RegularMove {
     pub fn is_capture(&self) -> bool {
         self._pieces > 0x0f
     }
+
+    pub fn is_pawn_involved(&self) -> bool {
+        self._pieces & 0xf0 == 0x10 || self._pieces & 0x0f == 0x01
+    }
 }
 
 impl EnPassantCaptureMove {
@@ -375,6 +379,15 @@ impl Move {
             Move::LongCastling(_) => None,
             Move::EnPassantCapture(_) => Some(Piece::Pawn),
             Move::Promotion(m) => m.captured_piece()
+        }
+    }
+
+    pub fn is_pawn_involved(&self) -> bool {
+        match self {
+            Move::Regular(m) => m.is_pawn_involved(),
+            Move::EnPassantCapture(_) => true,
+            Move::Promotion(m) => true,
+            _ => false
         }
     }
 

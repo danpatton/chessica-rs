@@ -181,9 +181,18 @@ impl Search {
             moves.sort_by_key(|&m| (-board.static_exchange_score(m)));
         }
 
+        let pp_mode = board.side_to_move_has_passed_pawns();
+
         for &move_ in moves.iter() {
-            if !in_check && !move_.is_capture() {
-                break;
+            if pp_mode {
+                if !in_check && !(move_.is_capture() || board.is_passed_pawn(move_.from())) {
+                    continue;
+                }
+            }
+            else {
+                if !in_check && !move_.is_capture() {
+                    break;
+                }
             }
             board.push(&move_);
             let score = -self._qsearch(board, -beta, -alpha);
@@ -377,6 +386,24 @@ mod tests {
             Some(move_) => assert_eq!(move_.to_uci_string(), uci_move),
             None => assert!(false)
         }
+    }
+
+    #[test]
+    fn test_treats_passed_pawns_with_respect() {
+        let mut board = Board::parse_fen("5N2/1k6/7p/8/1p6/2p4P/6PK/R7 w - - 0 37").unwrap();
+        // black has two very dangerous passed pawns; qsearch should ensure we don't ignore the threat
+        let mut search = Search::new(7);
+        let mut tt = TranspositionTable::new(20);
+        match search.search(&board, &mut tt) {
+            Some(best_move) => {
+                let pv = search.get_pv();
+                let pv_str = pv.iter().map(|&m| m.to_uci_string()).collect::<Vec<String>>().join(", ");
+                println!("PV: {}", pv_str);
+                assert_eq!(best_move.to_uci_string(), "a1b1");
+                board.push(&best_move);
+            }
+            None => assert!(false)
+        };
     }
 
     #[test]
