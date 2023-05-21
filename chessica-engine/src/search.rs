@@ -1,4 +1,5 @@
 use std::ops;
+use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use chessica::board::Board;
@@ -199,7 +200,7 @@ impl Search {
         let mut moves = board.legal_moves();
 
         if moves.is_empty() {
-            if !board.is_in_check() {
+            if !in_check {
                 // stalemate!
                 return Exact(0)
             }
@@ -208,22 +209,21 @@ impl Search {
 
         if !in_check {
             // move ordering: SEE
-            moves.sort_by_key(|&m| (-board.static_exchange_score(m)));
+            let sort_keys = moves.iter().map(|&m| if m.is_capture() {
+                board.static_exchange_score(m)
+            } else if board.is_passed_pawn(m.from()) {
+                1
+            } else {
+                0
+            });
+            moves = moves.iter()
+                .zip(sort_keys)
+                .filter(|&t| t.1 > 0)
+                .sorted_by_key(|&t| -t.1).map(|(&m, _)| m)
+                .collect();
         }
 
-        let pp_mode = board.side_to_move_has_passed_pawns();
-
         for &move_ in moves.iter() {
-            if pp_mode {
-                if !in_check && !(move_.is_capture() || board.is_passed_pawn(move_.from())) {
-                    continue;
-                }
-            }
-            else {
-                if !in_check && !move_.is_capture() {
-                    break;
-                }
-            }
             board.push(&move_);
             let score = -self._qsearch(board, -beta, -alpha);
             board.pop();
