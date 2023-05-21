@@ -429,28 +429,10 @@ impl Board {
     }
 
     pub fn get_pst_negamax_score(&self) -> i16 {
-        if self.is_threefold_repetition || self.half_move_clock >= 100 {
-            return 0;
-        }
-        if self.is_in_check() {
-            if self.legal_moves().is_empty() {
-                // checkmate!
-                return -30_000;
-            }
-        }
         self.pst_eval.score(self)
     }
 
     pub fn get_negamax_score(&self) -> i16 {
-        if self.is_threefold_repetition || self.half_move_clock >= 100 {
-            return 0;
-        }
-        if self.is_in_check() {
-            if self.legal_moves().is_empty() {
-                // checkmate!
-                return -30_000;
-            }
-        }
         self.get_material(self.side_to_move) - self.get_material(self.side_to_not_move)
     }
 

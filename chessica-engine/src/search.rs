@@ -158,6 +158,17 @@ impl Search {
 
         // TODO: work out how to use traits (?) to make eval function pluggable
 
+        if board.is_in_check() && board.legal_moves().is_empty() {
+            // checkmate!
+            return -30_000;
+        }
+        else if board.is_draw_by_threefold_repetition() {
+            return 0;
+        }
+        else if board.is_draw_by_fifty_move_rule() {
+            return 0;
+        }
+
         let perturbation = match self.rng_seed {
             // seed of 0 means "don't perturb"
             0 => 0,
@@ -188,6 +199,10 @@ impl Search {
         let mut moves = board.legal_moves();
 
         if moves.is_empty() {
+            if !board.is_in_check() {
+                // stalemate!
+                return Exact(0)
+            }
             return Exact(stand_pat_score);
         }
 
@@ -388,7 +403,7 @@ mod tests {
         const TT_BITS: u8 = 24;
         let board = Board::parse_fen(initial_fen).unwrap();
         let mut tt = TranspositionTable::new(TT_BITS);
-        let mut search = Search::new(max_depth);
+        let mut search = Search::new_with_rng(max_depth, 342044983);
         let best_move = search.search(&board, &mut tt);
         let pv = search.get_pv();
         let pv_str = pv.iter().map(|&m| m.to_uci_string()).collect::<Vec<String>>().join(", ");
