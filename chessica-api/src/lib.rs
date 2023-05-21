@@ -67,7 +67,7 @@ mod tests {
         let uci_moves = "".to_string();
         let initial_fen_cstr = CString::new(initial_fen).unwrap();
         let uci_moves_cstr = CString::new(uci_moves).unwrap();
-        let best_move_ptr = get_best_move(initial_fen_cstr.into_raw(), uci_moves_cstr.into_raw(),  5, 20);
+        let best_move_ptr = get_best_move(initial_fen_cstr.into_raw(), uci_moves_cstr.into_raw(),  5, 20, 0);
         let best_move_str = unsafe {
             CStr::from_ptr(best_move_ptr)
         }.to_str().unwrap();
