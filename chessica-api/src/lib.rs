@@ -13,7 +13,8 @@ pub extern fn get_best_move(
     initial_fen: *const c_char,
     uci_moves: *const c_char,
     max_depth: u8,
-    tt_key_bits: u8
+    tt_key_bits: u8,
+    rng_seed: u64
 ) -> *mut c_char {
     if initial_fen.is_null() || uci_moves.is_null() {
         return null_mut();
@@ -35,7 +36,7 @@ pub extern fn get_best_move(
         }
     }
     let mut tt = TranspositionTable::new(tt_key_bits);
-    let mut search = Search::new(max_depth as usize);
+    let mut search = Search::new_with_rng(max_depth as usize, rng_seed);
     match search.search(&board, &mut tt) {
         Some(best_move) => {
             let result = best_move.to_uci_string();

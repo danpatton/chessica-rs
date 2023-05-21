@@ -6,15 +6,15 @@ namespace Chessica.Rust;
 public static class ChessicaRustApi
 {
     [DllImport("chessica_api", EntryPoint="get_best_move")]
-    internal static extern StringHandle GetBestMove(string initialFen, string uciMoves, uint maxDepth, uint ttKeyBits);
+    internal static extern StringHandle GetBestMove(string initialFen, string uciMoves, uint maxDepth, uint ttKeyBits, ulong rngSeed);
 
     [DllImport("chessica_api", EntryPoint="free_string")]
     internal static extern void FreeString(IntPtr s);
 
-    public static bool TryGetBestMove(string initialFen, IEnumerable<string> uciMoves, uint maxDepth, uint ttKeyBits, out string? bestMove)
+    public static bool TryGetBestMove(string initialFen, IEnumerable<string> uciMoves, uint maxDepth, uint ttKeyBits, ulong rngSeed, out string? bestMove)
     {
         var uciMovesStr = string.Join(",", uciMoves);
-        using var bestMoveHandle = ChessicaRustApi.GetBestMove(initialFen, uciMovesStr, maxDepth, ttKeyBits);
+        using var bestMoveHandle = ChessicaRustApi.GetBestMove(initialFen, uciMovesStr, maxDepth, ttKeyBits, rngSeed);
         if (bestMoveHandle.IsInvalid)
         {
             bestMove = null;

@@ -1,4 +1,6 @@
 use std::ops;
+use rand::prelude::StdRng;
+use rand::{Rng, SeedableRng};
 use chessica::board::Board;
 use chessica::Move;
 use crate::search::Score::{LowerBound, UpperBound, Exact};
@@ -123,11 +125,17 @@ pub struct Search {
     q_cutoff_count: u32,
     tt_hit_count: u32,
     last_pv: Vec<Move>,
-    pv_table: Vec<Vec<Move>>
+    pv_table: Vec<Vec<Move>>,
+    rng_seed: u64,
+    rng: StdRng
 }
 
 impl Search {
     pub fn new(max_depth: usize) -> Self {
+        Search::new_with_rng(max_depth, 0)
+    }
+
+    pub fn new_with_rng(max_depth: usize, rng_seed: u64) -> Self {
         let mut pv_table = vec![];
         for i in 0..max_depth {
             pv_table.push(Vec::with_capacity(max_depth - i));
@@ -139,7 +147,9 @@ impl Search {
             q_cutoff_count: 0,
             tt_hit_count: 0,
             last_pv: vec![],
-            pv_table
+            pv_table,
+            rng_seed,
+            rng: StdRng::seed_from_u64(rng_seed)
         }
     }
 
@@ -148,8 +158,13 @@ impl Search {
 
         // TODO: work out how to use traits (?) to make eval function pluggable
 
-        // board.get_negamax_score()
-        board.get_pst_negamax_score()
+        let perturbation = match self.rng_seed {
+            // seed of 0 means "don't perturb"
+            0 => 0,
+            _ => self.rng.gen_range(-5..5)
+        };
+
+        board.get_pst_negamax_score() + perturbation
     }
 
     fn _qsearch(&mut self, board: &mut Board, alpha: i16, beta: i16) -> Score {
