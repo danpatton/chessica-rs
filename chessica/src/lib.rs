@@ -386,7 +386,7 @@ impl Move {
         match self {
             Move::Regular(m) => m.is_pawn_involved(),
             Move::EnPassantCapture(_) => true,
-            Move::Promotion(m) => true,
+            Move::Promotion(_) => true,
             _ => false
         }
     }
